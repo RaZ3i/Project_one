@@ -3,7 +3,7 @@ from functools import lru_cache
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.engine.url import URL, make_url
 
 _LOCALHOST_DEFAULT = "postgresql+asyncpg://tutoring:tutoring@localhost:5432/tutoring"
 
@@ -38,7 +38,36 @@ class Settings(BaseSettings):
             )
         return self
 
-    def _parsed_database_url(self):
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_database_url(cls, data: object) -> object:
+        """Prefer DATABASE_URL; build from Railway PG* vars when URL is unset."""
+        if not isinstance(data, dict):
+            return data
+        url = data.get("DATABASE_URL")
+        if url is None:
+            url = os.getenv("DATABASE_URL")
+        if url and str(url).strip() and str(url).strip() != _LOCALHOST_DEFAULT:
+            return data
+
+        pg_host = os.getenv("PGHOST")
+        pg_user = os.getenv("PGUSER")
+        pg_password = os.getenv("PGPASSWORD")
+        pg_database = os.getenv("PGDATABASE")
+        pg_port = os.getenv("PGPORT", "5432")
+        if pg_host and pg_user and pg_password and pg_database:
+            built = URL.create(
+                drivername="postgresql",
+                username=pg_user,
+                password=pg_password,
+                host=pg_host,
+                port=int(pg_port),
+                database=pg_database,
+            ).render_as_string(hide_password=False)
+            return {**data, "DATABASE_URL": built}
+        return data
+
+    def _parsed_database_url(self) -> URL:
         try:
             return make_url(self.DATABASE_URL)
         except Exception as exc:
@@ -47,14 +76,19 @@ class Settings(BaseSettings):
                 "If the password contains special characters, URL-encode them."
             ) from exc
 
+    @staticmethod
+    def _render_database_url(parsed: URL) -> str:
+        # SQLAlchemy 2.x str(URL) masks the password as "***"; drivers then send that literally.
+        return parsed.render_as_string(hide_password=False)
+
     @property
     def async_database_url(self) -> str:
         parsed = self._parsed_database_url()
         driver = parsed.drivername
         if driver in ("postgresql", "postgres"):
-            return str(parsed.set(drivername="postgresql+asyncpg"))
+            return self._render_database_url(parsed.set(drivername="postgresql+asyncpg"))
         if driver == "postgresql+asyncpg":
-            return str(parsed)
+            return self._render_database_url(parsed)
         return self.DATABASE_URL
 
     @property
@@ -63,9 +97,9 @@ class Settings(BaseSettings):
         parsed = self._parsed_database_url()
         driver = parsed.drivername
         if driver in ("postgresql", "postgres", "postgresql+asyncpg"):
-            return str(parsed.set(drivername="postgresql+psycopg2"))
+            return self._render_database_url(parsed.set(drivername="postgresql+psycopg2"))
         if driver == "postgresql+psycopg2":
-            return str(parsed)
+            return self._render_database_url(parsed)
         return self.DATABASE_URL
 
     @property
