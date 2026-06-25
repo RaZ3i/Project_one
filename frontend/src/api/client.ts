@@ -84,6 +84,12 @@ export interface Slot {
 
 export type LessonStatus = "scheduled" | "completed" | "cancelled";
 
+export const LESSON_STATUS_LABELS: Record<LessonStatus, string> = {
+  scheduled: "Запланировано",
+  completed: "Завершено",
+  cancelled: "Отменено",
+};
+
 export interface Lesson {
   id: string;
   student_id: string;

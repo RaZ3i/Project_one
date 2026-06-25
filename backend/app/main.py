@@ -21,7 +21,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Tutoring Platform", version="1.0.0")
+    app = FastAPI(title="Платформа репетиторства", version="1.0.0")
 
     app.add_middleware(
         CORSMiddleware,
@@ -39,14 +39,14 @@ def create_app() -> FastAPI:
         @app.get("/{full_path:path}")
         async def spa_fallback(request: Request, full_path: str):
             if full_path.startswith("api"):
-                raise HTTPException(status_code=404, detail="Not Found")
+                raise HTTPException(status_code=404, detail="Не найдено")
             file_path = STATIC_DIR / full_path
             if file_path.is_file():
                 return FileResponse(file_path)
             index = STATIC_DIR / "index.html"
             if index.exists():
                 return FileResponse(index)
-            raise HTTPException(status_code=404, detail="Not Found")
+            raise HTTPException(status_code=404, detail="Не найдено")
 
     return app
 

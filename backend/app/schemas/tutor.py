@@ -14,7 +14,7 @@ class TutorProfileUpdate(BaseModel):
         if v is None or v == "":
             return None
         if not v.startswith(("http://", "https://")):
-            raise ValueError("URL must start with http:// or https://")
+            raise ValueError("URL должен начинаться с http:// или https://")
         return v
 
 

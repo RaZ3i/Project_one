@@ -12,7 +12,7 @@ import TutorsPage from "./pages/TutorsPage";
 
 function DashboardRedirect() {
   const { user, loading } = useAuth();
-  if (loading) return <div className="text-center py-12">Loading...</div>;
+  if (loading) return <div className="text-center py-12">Загрузка...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return <Navigate to={user.role === "tutor" ? "/tutor/dashboard" : "/dashboard"} replace />;
 }

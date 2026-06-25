@@ -8,14 +8,14 @@ export default function TutorsPage() {
     queryFn: () => apiFetch<TutorListItem[]>("/api/tutors"),
   });
 
-  if (isLoading) return <p className="text-slate-500">Loading tutors...</p>;
-  if (error) return <p className="text-red-600">Failed to load tutors</p>;
+  if (isLoading) return <p className="text-slate-500">Загрузка репетиторов...</p>;
+  if (error) return <p className="text-red-600">Не удалось загрузить репетиторов</p>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Find a Tutor</h1>
+      <h1 className="text-2xl font-bold mb-6">Найти репетитора</h1>
       {tutors?.length === 0 ? (
-        <p className="text-slate-500">No tutors available yet.</p>
+        <p className="text-slate-500">Пока нет доступных репетиторов.</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {tutors?.map((tutor) => (

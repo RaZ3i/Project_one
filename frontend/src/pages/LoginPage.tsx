@@ -19,7 +19,7 @@ export default function LoginPage() {
       await login(email, password);
       navigate("/dashboard-redirect");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Login failed");
+      setError(err instanceof ApiError ? err.message : "Не удалось войти");
     } finally {
       setLoading(false);
     }
@@ -27,11 +27,11 @@ export default function LoginPage() {
 
   return (
     <div className="max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Sign in</h1>
+      <h1 className="text-2xl font-bold mb-6">Вход</h1>
       <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow-sm border">
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
+          <label className="block text-sm font-medium mb-1">Эл. почта</label>
           <input
             type="email"
             required
@@ -41,7 +41,7 @@ export default function LoginPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Password</label>
+          <label className="block text-sm font-medium mb-1">Пароль</label>
           <input
             type="password"
             required
@@ -56,13 +56,13 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
         >
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? "Вход..." : "Войти"}
         </button>
       </form>
       <p className="text-center mt-4 text-sm text-slate-600">
-        No account?{" "}
+        Нет аккаунта?{" "}
         <Link to="/register" className="text-indigo-600 hover:underline">
-          Register
+          Зарегистрироваться
         </Link>
       </p>
     </div>

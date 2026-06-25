@@ -18,27 +18,27 @@ async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Требуется авторизация")
     payload = decode_access_token(credentials.credentials)
     if payload is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Недействительный токен")
     user_id = payload.get("sub")
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Недействительный токен")
     result = await db.execute(select(User).where(User.id == UUID(user_id)))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден")
     return user
 
 
 async def get_current_tutor(user: Annotated[User, Depends(get_current_user)]) -> User:
     if user.role != UserRole.tutor:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tutor access required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется доступ репетитора")
     return user
 
 
 async def get_current_student(user: Annotated[User, Depends(get_current_user)]) -> User:
     if user.role != UserRole.student:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Student access required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется доступ ученика")
     return user

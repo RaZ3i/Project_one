@@ -46,7 +46,7 @@ async def get_tutor(tutor_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]
     )
     tutor = result.scalar_one_or_none()
     if tutor is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tutor not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Репетитор не найден")
     profile = tutor.tutor_profile
     return TutorDetail(
         id=tutor.id,

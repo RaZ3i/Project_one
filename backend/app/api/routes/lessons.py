@@ -28,7 +28,7 @@ async def create_lesson(
         raise
     except Exception as e:
         if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slot already booked") from e
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже забронирован") from e
         raise
 
     result = await db.execute(
@@ -83,24 +83,24 @@ async def update_lesson(
     )
     lesson = result.scalar_one_or_none()
     if lesson is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Занятие не найдено")
 
     is_student = user.role == UserRole.student and lesson.student_id == user.id
     is_tutor = user.role == UserRole.tutor and lesson.tutor_id == user.id
     if not is_student and not is_tutor:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа")
 
     update_data = data.model_dump(exclude_unset=True)
 
     if "meeting_url" in update_data and user.role != UserRole.tutor:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only tutors can update meeting URL")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только репетиторы могут обновлять ссылку на встречу")
 
     if "status" in update_data:
         new_status = update_data["status"]
         if new_status == LessonStatus.cancelled:
             pass
         elif new_status == LessonStatus.completed and user.role != UserRole.tutor:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only tutors can mark completed")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только репетиторы могут отмечать занятия как завершённые")
 
     for key, value in update_data.items():
         setattr(lesson, key, value)

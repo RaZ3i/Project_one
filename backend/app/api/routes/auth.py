@@ -18,7 +18,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def register(data: UserRegister, db: Annotated[AsyncSession, Depends(get_db)]):
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Эл. почта уже зарегистрирована")
 
     user = User(
         email=data.email,
@@ -47,7 +47,7 @@ async def login(data: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверные учётные данные")
 
     token = create_access_token(str(user.id), {"role": user.role.value})
     return TokenResponse(

@@ -41,22 +41,22 @@ def lesson_to_response(lesson: Lesson) -> LessonResponse:
 
 async def book_lesson(db: AsyncSession, student: User, slot_id: UUID) -> Lesson:
     if student.role != UserRole.student:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Student access required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется доступ ученика")
 
     result = await db.execute(
         select(AvailabilitySlot).where(AvailabilitySlot.id == slot_id).with_for_update()
     )
     slot = result.scalar_one_or_none()
     if slot is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Слот не найден")
     if slot.is_booked:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slot already booked")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже забронирован")
 
     if slot.starts_at <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot book a past slot")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя забронировать прошедший слот")
 
     if slot.tutor_id == student.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot book your own slot")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя забронировать свой собственный слот")
 
     profile_result = await db.execute(
         select(TutorProfile).where(TutorProfile.user_id == slot.tutor_id)

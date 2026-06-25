@@ -19,7 +19,7 @@ export default function Layout() {
           </Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link to="/tutors" className="hover:text-indigo-600">
-              Tutors
+              Репетиторы
             </Link>
             {user ? (
               <>
@@ -27,23 +27,23 @@ export default function Layout() {
                   to={user.role === "tutor" ? "/tutor/dashboard" : "/dashboard"}
                   className="hover:text-indigo-600"
                 >
-                  Dashboard
+                  Личный кабинет
                 </Link>
                 <span className="text-slate-500">{user.full_name}</span>
                 <button onClick={handleLogout} className="text-red-600 hover:underline">
-                  Logout
+                  Выйти
                 </button>
               </>
             ) : (
               <>
                 <Link to="/login" className="hover:text-indigo-600">
-                  Login
+                  Войти
                 </Link>
                 <Link
                   to="/register"
                   className="bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700"
                 >
-                  Register
+                  Регистрация
                 </Link>
               </>
             )}

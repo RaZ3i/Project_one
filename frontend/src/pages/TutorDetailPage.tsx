@@ -5,7 +5,7 @@ import { ApiError, apiFetch, type Slot, type TutorDetail } from "../api/client";
 import { useAuth } from "../api/auth";
 
 function formatSlotTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString("ru-RU", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -41,7 +41,7 @@ export default function TutorDetailPage() {
       navigate("/dashboard");
     },
     onError: (err) => {
-      setError(err instanceof ApiError ? err.message : "Booking failed");
+      setError(err instanceof ApiError ? err.message : "Не удалось забронировать");
     },
   });
 
@@ -51,20 +51,20 @@ export default function TutorDetailPage() {
       return;
     }
     if (user.role !== "student") {
-      setError("Only students can book lessons");
+      setError("Только ученики могут бронировать занятия");
       return;
     }
     setError("");
     bookMutation.mutate(slotId);
   };
 
-  if (isLoading) return <p className="text-slate-500">Loading...</p>;
-  if (!tutor) return <p className="text-red-600">Tutor not found</p>;
+  if (isLoading) return <p className="text-slate-500">Загрузка...</p>;
+  if (!tutor) return <p className="text-red-600">Репетитор не найден</p>;
 
   return (
     <div>
       <Link to="/tutors" className="text-indigo-600 text-sm hover:underline">
-        &larr; Back to tutors
+        &larr; Назад к репетиторам
       </Link>
       <div className="mt-4 bg-white p-6 rounded-lg border">
         <h1 className="text-2xl font-bold">{tutor.full_name}</h1>
@@ -72,10 +72,10 @@ export default function TutorDetailPage() {
         {tutor.bio && <p className="text-slate-600 mt-3">{tutor.bio}</p>}
       </div>
 
-      <h2 className="text-xl font-semibold mt-8 mb-4">Available Slots</h2>
+      <h2 className="text-xl font-semibold mt-8 mb-4">Доступные слоты</h2>
       {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
       {slots?.length === 0 ? (
-        <p className="text-slate-500">No available slots. Check back later.</p>
+        <p className="text-slate-500">Нет доступных слотов. Загляните позже.</p>
       ) : (
         <div className="space-y-3">
           {slots?.map((slot) => (
@@ -89,7 +89,7 @@ export default function TutorDetailPage() {
                 disabled={bookMutation.isPending}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50"
               >
-                Book
+                Забронировать
               </button>
             </div>
           ))}

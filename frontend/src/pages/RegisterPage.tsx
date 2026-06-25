@@ -21,7 +21,7 @@ export default function RegisterPage() {
       await register({ email, password, full_name: fullName, role });
       navigate(role === "tutor" ? "/tutor/dashboard" : "/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Registration failed");
+      setError(err instanceof ApiError ? err.message : "Не удалось зарегистрироваться");
     } finally {
       setLoading(false);
     }
@@ -29,11 +29,11 @@ export default function RegisterPage() {
 
   return (
     <div className="max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Create account</h1>
+      <h1 className="text-2xl font-bold mb-6">Создать аккаунт</h1>
       <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow-sm border">
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <div>
-          <label className="block text-sm font-medium mb-1">Full name</label>
+          <label className="block text-sm font-medium mb-1">Полное имя</label>
           <input
             type="text"
             required
@@ -43,7 +43,7 @@ export default function RegisterPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
+          <label className="block text-sm font-medium mb-1">Эл. почта</label>
           <input
             type="email"
             required
@@ -53,7 +53,7 @@ export default function RegisterPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Password (min 8 chars)</label>
+          <label className="block text-sm font-medium mb-1">Пароль (мин. 8 символов)</label>
           <input
             type="password"
             required
@@ -64,7 +64,7 @@ export default function RegisterPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">I am a</label>
+          <label className="block text-sm font-medium mb-1">Я —</label>
           <div className="flex gap-4">
             <label className="flex items-center gap-2">
               <input
@@ -73,7 +73,7 @@ export default function RegisterPage() {
                 checked={role === "student"}
                 onChange={() => setRole("student")}
               />
-              Student
+              Ученик
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -82,7 +82,7 @@ export default function RegisterPage() {
                 checked={role === "tutor"}
                 onChange={() => setRole("tutor")}
               />
-              Tutor
+              Репетитор
             </label>
           </div>
         </div>
@@ -91,13 +91,13 @@ export default function RegisterPage() {
           disabled={loading}
           className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
         >
-          {loading ? "Creating..." : "Register"}
+          {loading ? "Создание..." : "Зарегистрироваться"}
         </button>
       </form>
       <p className="text-center mt-4 text-sm text-slate-600">
-        Already have an account?{" "}
+        Уже есть аккаунт?{" "}
         <Link to="/login" className="text-indigo-600 hover:underline">
-          Sign in
+          Войти
         </Link>
       </p>
     </div>

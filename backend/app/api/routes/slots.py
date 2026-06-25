@@ -39,7 +39,7 @@ async def create_slot(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     if data.starts_at <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slot must be in the future")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Слот должен быть в будущем")
 
     slot = AvailabilitySlot(
         tutor_id=tutor.id,
@@ -66,9 +66,9 @@ async def delete_slot(
     )
     slot = result.scalar_one_or_none()
     if slot is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Слот не найден")
     if slot.is_booked:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete booked slot")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя удалить забронированный слот")
 
     await db.delete(slot)
     await db.commit()

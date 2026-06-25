@@ -13,7 +13,7 @@ class SlotCreate(BaseModel):
     def ends_after_starts(cls, ends_at: datetime, info) -> datetime:
         starts_at = info.data.get("starts_at")
         if starts_at and ends_at <= starts_at:
-            raise ValueError("ends_at must be after starts_at")
+            raise ValueError("Время окончания должно быть позже времени начала")
         return ends_at
 
 

@@ -24,21 +24,21 @@ async def seed() -> None:
             id=uuid.uuid4(),
             email="anna.tutor@example.com",
             password_hash=get_password_hash("password123"),
-            full_name="Anna Ivanova",
+            full_name="Анна Иванова",
             role=UserRole.tutor,
         )
         tutor2 = User(
             id=uuid.uuid4(),
             email="petr.tutor@example.com",
             password_hash=get_password_hash("password123"),
-            full_name="Petr Smirnov",
+            full_name="Пётр Смирнов",
             role=UserRole.tutor,
         )
         student = User(
             id=uuid.uuid4(),
             email="student@example.com",
             password_hash=get_password_hash("password123"),
-            full_name="Maria Student",
+            full_name="Мария Петрова",
             role=UserRole.student,
         )
 
@@ -49,14 +49,14 @@ async def seed() -> None:
             [
                 TutorProfile(
                     user_id=tutor1.id,
-                    bio="Experienced math tutor with 10 years of teaching.",
-                    subjects="Mathematics, Physics",
+                    bio="Опытный репетитор по математике с 10-летним стажем преподавания.",
+                    subjects="Математика, физика",
                     default_meeting_url="https://meet.google.com/abc-defg-hij",
                 ),
                 TutorProfile(
                     user_id=tutor2.id,
-                    bio="English and IELTS preparation specialist.",
-                    subjects="English, IELTS",
+                    bio="Специалист по английскому языку и подготовке к IELTS.",
+                    subjects="Английский, IELTS",
                     default_meeting_url="https://zoom.us/j/123456789",
                 ),
             ]

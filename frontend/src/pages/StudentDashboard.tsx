@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, type Lesson } from "../api/client";
+import { apiFetch, LESSON_STATUS_LABELS, type Lesson } from "../api/client";
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleString("ru-RU");
 }
 
 function LessonCard({ lesson }: { lesson: Lesson }) {
@@ -34,7 +34,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
                   : "bg-slate-100 text-slate-600"
             }`}
           >
-            {lesson.status}
+            {LESSON_STATUS_LABELS[lesson.status]}
           </span>
         </div>
         <div className="flex flex-col gap-2 items-end">
@@ -45,7 +45,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
               rel="noopener noreferrer"
               className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
             >
-              Join Meeting
+              Присоединиться
             </a>
           )}
           {isUpcoming && (
@@ -54,7 +54,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
               disabled={cancelMutation.isPending}
               className="text-red-600 text-sm hover:underline"
             >
-              Cancel
+              Отменить
             </button>
           )}
         </div>
@@ -69,7 +69,7 @@ export default function StudentDashboard() {
     queryFn: () => apiFetch<Lesson[]>("/api/lessons/me"),
   });
 
-  if (isLoading) return <p className="text-slate-500">Loading lessons...</p>;
+  if (isLoading) return <p className="text-slate-500">Загрузка занятий...</p>;
 
   const upcoming = lessons?.filter(
     (l) => l.status === "scheduled" && l.slot_starts_at && new Date(l.slot_starts_at) > new Date()
@@ -80,19 +80,19 @@ export default function StudentDashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">My Lessons</h1>
+      <h1 className="text-2xl font-bold mb-6">Мои занятия</h1>
       <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-3">Upcoming</h2>
+        <h2 className="text-lg font-semibold mb-3">Предстоящие</h2>
         {upcoming?.length === 0 ? (
-          <p className="text-slate-500">No upcoming lessons. <a href="/tutors" className="text-indigo-600 hover:underline">Browse tutors</a></p>
+          <p className="text-slate-500">Нет предстоящих занятий. <a href="/tutors" className="text-indigo-600 hover:underline">Смотреть репетиторов</a></p>
         ) : (
           <div className="space-y-3">{upcoming?.map((l) => <LessonCard key={l.id} lesson={l} />)}</div>
         )}
       </section>
       <section>
-        <h2 className="text-lg font-semibold mb-3">Past & Cancelled</h2>
+        <h2 className="text-lg font-semibold mb-3">Прошедшие и отменённые</h2>
         {past?.length === 0 ? (
-          <p className="text-slate-500">No past lessons yet.</p>
+          <p className="text-slate-500">Пока нет прошедших занятий.</p>
         ) : (
           <div className="space-y-3">{past?.map((l) => <LessonCard key={l.id} lesson={l} />)}</div>
         )}
