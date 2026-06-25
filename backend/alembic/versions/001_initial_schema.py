@@ -18,8 +18,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    user_role = postgresql.ENUM("student", "tutor", name="user_role", create_type=True)
-    lesson_status = postgresql.ENUM("scheduled", "completed", "cancelled", name="lesson_status", create_type=True)
+    # create_type=False: enums are created below; avoids DuplicateObject on redeploy.
+    user_role = postgresql.ENUM("student", "tutor", name="user_role", create_type=False)
+    lesson_status = postgresql.ENUM(
+        "scheduled", "completed", "cancelled", name="lesson_status", create_type=False
+    )
     user_role.create(op.get_bind(), checkfirst=True)
     lesson_status.create(op.get_bind(), checkfirst=True)
 
