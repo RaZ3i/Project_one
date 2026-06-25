@@ -16,9 +16,10 @@
 
 ```
 Project_one/
-├── backend/          # FastAPI-приложение, Alembic, Dockerfile
+├── backend/          # FastAPI-приложение, Alembic
 ├── frontend/         # Vite + React + TypeScript
 ├── docker-compose.yml
+├── Dockerfile        # Многоэтапная сборка (frontend + backend)
 ├── railway.toml
 └── README.md
 ```
@@ -114,12 +115,15 @@ npm run build
 
 1. Загрузите репозиторий на GitHub и создайте проект в Railway.
 2. Добавьте плагин **PostgreSQL**.
-3. Добавьте веб-сервис из репозитория — используется `backend/Dockerfile` через `railway.toml`.
-4. Задайте переменные для веб-сервиса:
+3. Добавьте веб-сервис из репозитория. В **Settings → Root Directory** оставьте `/` (корень репозитория). Не указывайте `backend/` — Dockerfile копирует `frontend/` и `backend/` из корня; при root `backend/` сборка падает с `COPY frontend/ ... not found`.
+4. Сборка идёт через `Dockerfile` в корне (`railway.toml` задаёт `builder = DOCKERFILE`).
+5. Задайте переменные для веб-сервиса:
    - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (автоматически конвертируется в asyncpg)
    - `SECRET_KEY` = случайная строка из 32+ символов
    - `CORS_ORIGINS` = ваш домен Railway (или `*` для демо)
-5. Сгенерируйте домен в разделе Networking.
+6. Сгенерируйте домен в разделе Networking.
+
+На бесплатном плане отключите **multi-region** (оставьте один регион, без реплик) — иначе деплой может не пройти.
 
 Многоэтапная Docker-сборка компилирует React-приложение и копирует его в `backend/static`. FastAPI обслуживает SPA с fallback на `index.html`.
 
