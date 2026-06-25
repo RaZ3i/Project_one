@@ -126,6 +126,8 @@ npm run build
 
 **Частые ошибки:** Alembic падает с `connection refused` / `localhost` — `DATABASE_URL` не задан на веб-сервисе (приложение использует localhost по умолчанию). Исправление: Reference на Postgres, затем redeploy.
 
+Если деплой застрял из‑за частично созданной схемы (таблицы есть, но `alembic_version` пуста, или ошибки `DuplicateObject` / `relation already exists`), сбросьте схему в Railway Postgres → **Data** → Query и выполните `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`, затем redeploy. Начальная миграция идемпотентна, но при сильно повреждённой схеме чистый сброс надёжнее.
+
 На бесплатном плане отключите **multi-region** (оставьте один регион, без реплик) — иначе деплой может не пройти.
 
 Многоэтапная Docker-сборка компилирует React-приложение и копирует его в `backend/static`. FastAPI обслуживает SPA с fallback на `index.html`.

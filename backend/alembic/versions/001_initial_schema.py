@@ -35,8 +35,9 @@ def upgrade() -> None:
         sa.Column("full_name", sa.String(length=255), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.PrimaryKeyConstraint("id"),
+        if_not_exists=True,
     )
-    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
+    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True, if_not_exists=True)
 
     op.create_table(
         "tutor_profiles",
@@ -46,6 +47,7 @@ def upgrade() -> None:
         sa.Column("default_meeting_url", sa.String(length=500), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("user_id"),
+        if_not_exists=True,
     )
 
     op.create_table(
@@ -58,8 +60,15 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["tutor_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+        if_not_exists=True,
     )
-    op.create_index(op.f("ix_availability_slots_tutor_id"), "availability_slots", ["tutor_id"], unique=False)
+    op.create_index(
+        op.f("ix_availability_slots_tutor_id"),
+        "availability_slots",
+        ["tutor_id"],
+        unique=False,
+        if_not_exists=True,
+    )
 
     op.create_table(
         "lessons",
@@ -76,9 +85,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["tutor_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("slot_id"),
+        if_not_exists=True,
     )
-    op.create_index(op.f("ix_lessons_student_id"), "lessons", ["student_id"], unique=False)
-    op.create_index(op.f("ix_lessons_tutor_id"), "lessons", ["tutor_id"], unique=False)
+    op.create_index(op.f("ix_lessons_student_id"), "lessons", ["student_id"], unique=False, if_not_exists=True)
+    op.create_index(op.f("ix_lessons_tutor_id"), "lessons", ["tutor_id"], unique=False, if_not_exists=True)
 
 
 def downgrade() -> None:
