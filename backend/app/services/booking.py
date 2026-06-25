@@ -39,6 +39,25 @@ def lesson_to_response(lesson: Lesson) -> LessonResponse:
     )
 
 
+def slot_is_actively_booked(slot: AvailabilitySlot) -> bool:
+    """A slot is booked only when it has a scheduled (non-cancelled) lesson."""
+    if slot.lesson is not None:
+        return slot.lesson.status == LessonStatus.scheduled
+    return slot.is_booked
+
+
+async def release_slot(db: AsyncSession, slot_id: UUID) -> None:
+    result = await db.execute(select(AvailabilitySlot).where(AvailabilitySlot.id == slot_id))
+    slot = result.scalar_one_or_none()
+    if slot is not None:
+        slot.is_booked = False
+
+
+async def cancel_lesson_booking(db: AsyncSession, lesson: Lesson) -> None:
+    lesson.status = LessonStatus.cancelled
+    await release_slot(db, lesson.slot_id)
+
+
 async def book_lesson(db: AsyncSession, student: User, slot_id: UUID) -> Lesson:
     if student.role != UserRole.student:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется доступ ученика")
@@ -49,14 +68,45 @@ async def book_lesson(db: AsyncSession, student: User, slot_id: UUID) -> Lesson:
     slot = result.scalar_one_or_none()
     if slot is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Слот не найден")
-    if slot.is_booked:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже забронирован")
 
     if slot.starts_at <= datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя забронировать прошедший слот")
 
     if slot.tutor_id == student.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя забронировать свой собственный слот")
+
+    existing_result = await db.execute(select(Lesson).where(Lesson.slot_id == slot_id))
+    existing_lesson = existing_result.scalar_one_or_none()
+
+    if existing_lesson is not None:
+        if existing_lesson.status == LessonStatus.scheduled:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже забронирован")
+        if existing_lesson.status == LessonStatus.completed:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже использован")
+        if existing_lesson.status == LessonStatus.cancelled:
+            profile_result = await db.execute(
+                select(TutorProfile).where(TutorProfile.user_id == slot.tutor_id)
+            )
+            profile = profile_result.scalar_one_or_none()
+            existing_lesson.student_id = student.id
+            existing_lesson.status = LessonStatus.scheduled
+            existing_lesson.meeting_url = profile.default_meeting_url if profile else None
+            slot.is_booked = True
+            await db.flush()
+            await db.commit()
+            return existing_lesson
+
+    if slot.is_booked:
+        active_result = await db.execute(
+            select(Lesson).where(
+                Lesson.slot_id == slot_id,
+                Lesson.status == LessonStatus.scheduled,
+            )
+        )
+        if active_result.scalar_one_or_none() is None:
+            slot.is_booked = False
+        else:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже забронирован")
 
     profile_result = await db.execute(
         select(TutorProfile).where(TutorProfile.user_id == slot.tutor_id)

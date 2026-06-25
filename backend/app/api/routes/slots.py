@@ -3,14 +3,17 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_tutor
 from app.core.database import get_db
+from app.models.lesson import Lesson, LessonStatus
 from app.models.slot import AvailabilitySlot
 from app.models.user import User
 from app.schemas.slot import SlotCreate, SlotResponse
+from app.services.booking import slot_is_actively_booked
 
 router = APIRouter(prefix="/slots", tags=["slots"])
 
@@ -21,15 +24,26 @@ async def list_slots(
     tutor_id: UUID = Query(...),
     available_only: bool = Query(True),
 ):
-    query = select(AvailabilitySlot).where(AvailabilitySlot.tutor_id == tutor_id)
+    query = (
+        select(AvailabilitySlot)
+        .outerjoin(Lesson, AvailabilitySlot.id == Lesson.slot_id)
+        .where(AvailabilitySlot.tutor_id == tutor_id)
+        .options(selectinload(AvailabilitySlot.lesson))
+    )
     if available_only:
         query = query.where(
-            AvailabilitySlot.is_booked == False,  # noqa: E712
             AvailabilitySlot.starts_at > datetime.now(timezone.utc),
+            or_(
+                Lesson.id.is_(None),
+                Lesson.status != LessonStatus.scheduled,
+            ),
         )
     query = query.order_by(AvailabilitySlot.starts_at)
     result = await db.execute(query)
-    return result.scalars().all()
+    slots = result.scalars().unique().all()
+    for slot in slots:
+        slot.is_booked = slot_is_actively_booked(slot)
+    return slots
 
 
 @router.post("", response_model=SlotResponse, status_code=status.HTTP_201_CREATED)
@@ -59,15 +73,17 @@ async def delete_slot(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(
-        select(AvailabilitySlot).where(
+        select(AvailabilitySlot)
+        .where(
             AvailabilitySlot.id == slot_id,
             AvailabilitySlot.tutor_id == tutor.id,
         )
+        .options(selectinload(AvailabilitySlot.lesson))
     )
     slot = result.scalar_one_or_none()
     if slot is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Слот не найден")
-    if slot.is_booked:
+    if slot_is_actively_booked(slot):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя удалить забронированный слот")
 
     await db.delete(slot)

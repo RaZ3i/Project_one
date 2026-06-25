@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.models.lesson import Lesson, LessonStatus
 from app.models.user import User, UserRole
 from app.schemas.lesson import LessonCreate, LessonResponse, LessonUpdate
-from app.services.booking import book_lesson, lesson_to_response
+from app.services.booking import book_lesson, cancel_lesson_booking, lesson_to_response
 
 router = APIRouter(prefix="/lessons", tags=["lessons"])
 
@@ -102,11 +102,12 @@ async def update_lesson(
         elif new_status == LessonStatus.completed and user.role != UserRole.tutor:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только репетиторы могут отмечать занятия как завершённые")
 
+    if update_data.get("status") == LessonStatus.cancelled:
+        await cancel_lesson_booking(db, lesson)
+        update_data.pop("status", None)
+
     for key, value in update_data.items():
         setattr(lesson, key, value)
-
-    if lesson.status == LessonStatus.cancelled and lesson.slot:
-        lesson.slot.is_booked = False
 
     await db.commit()
     await db.refresh(lesson)
