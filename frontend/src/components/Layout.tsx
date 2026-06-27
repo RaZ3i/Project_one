@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../api/auth";
 import ViewModeToggle from "./ViewModeToggle";
 import ThemeToggle from "./ThemeToggle";
+import SiteLogo from "./SiteLogo";
 
 function NavLink({
   to,
@@ -76,9 +77,7 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col pb-safe-bottom md:pb-0">
       <header className="bg-surface border-b border-theme sticky top-0 z-40 pt-safe-top">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
-          <Link to="/" className="text-lg sm:text-xl font-semibold text-primary shrink-0">
-            TutorHub
-          </Link>
+          <SiteLogo />
 
           <nav className="hidden md:flex items-center gap-1 lg:gap-2 text-sm">
             <NavLink to="/tutors">Репетиторы</NavLink>
