@@ -52,6 +52,7 @@ async def list_tutors(
             TutorListItem(
                 id=tutor.id,
                 full_name=tutor.full_name,
+                gender=tutor.gender,
                 subjects=profile.subjects if profile else None,
                 bio=profile.bio if profile else None,
                 avatar_url=tutor.avatar_url,
@@ -102,6 +103,7 @@ async def get_tutor(tutor_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]
         id=tutor.id,
         full_name=tutor.full_name,
         email=tutor.email,
+        gender=tutor.gender,
         subjects=profile.subjects if profile else None,
         bio=profile.bio if profile else None,
         default_meeting_url=profile.default_meeting_url if profile else None,
@@ -136,6 +138,7 @@ async def update_my_profile(
         id=tutor.id,
         full_name=tutor.full_name,
         email=tutor.email,
+        gender=tutor.gender,
         subjects=profile.subjects,
         bio=profile.bio,
         default_meeting_url=profile.default_meeting_url,

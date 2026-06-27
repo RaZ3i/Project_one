@@ -86,7 +86,7 @@ export default function TutorsPage() {
               className="block card-surface hover:border-primary-300 dark:hover:border-primary-600 transition min-h-[44px]"
             >
               <div className="flex gap-3">
-                <Avatar name={tutor.full_name} src={tutor.avatar_url} size="md" />
+                <Avatar name={tutor.full_name} src={tutor.avatar_url} gender={tutor.gender} size="md" />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-base sm:text-lg font-semibold">{tutor.full_name}</h2>
                   <div className="mt-1">

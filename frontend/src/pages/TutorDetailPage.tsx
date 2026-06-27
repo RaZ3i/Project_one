@@ -125,7 +125,7 @@ export default function TutorDetailPage() {
       </Link>
       <div className="mt-4 card-surface">
         <div className="flex gap-4 items-start">
-          <Avatar name={tutor.full_name} src={tutor.avatar_url} size="lg" />
+          <Avatar name={tutor.full_name} src={tutor.avatar_url} gender={tutor.gender} size="lg" />
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">{tutor.full_name}</h1>
             <div className="mt-1">

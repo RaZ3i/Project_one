@@ -17,8 +17,6 @@ class UserRole(str, enum.Enum):
 class UserGender(str, enum.Enum):
     male = "male"
     female = "female"
-    other = "other"
-    prefer_not_say = "prefer_not_say"
 
 
 class User(Base):

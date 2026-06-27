@@ -1,9 +1,13 @@
 """Unit tests for slot availability after lesson cancellation."""
 
+import sys
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.models.lesson import LessonStatus
 from app.services.booking import slot_is_actively_booked

@@ -1,19 +1,33 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiUpload, type UserProfile, type UserGender } from "../api/client";
+import { useAuth } from "../api/auth";
 import Avatar from "./Avatar";
 import { CameraIcon } from "./icons";
 
-const GENDER_OPTIONS: { value: UserGender | ""; label: string }[] = [
-  { value: "", label: "Не указан" },
+const GENDER_OPTIONS: { value: UserGender; label: string }[] = [
   { value: "male", label: "Мужской" },
   { value: "female", label: "Женский" },
-  { value: "other", label: "Другой" },
-  { value: "prefer_not_say", label: "Не хочу указывать" },
 ];
+
+const GENDER_LABELS: Record<UserGender, string> = {
+  male: "Мужской",
+  female: "Женский",
+};
+
+function ProfileField({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="text-sm">{value}</dd>
+    </div>
+  );
+}
 
 export default function ProfileCard() {
   const queryClient = useQueryClient();
+  const { refreshUser } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fullName, setFullName] = useState("");
   const [gender, setGender] = useState<UserGender | "">("");
@@ -38,6 +52,14 @@ export default function ProfileCard() {
     }
   }, [profile]);
 
+  const refetchProfile = async (data?: UserProfile) => {
+    if (data) {
+      queryClient.setQueryData(["user-profile"], data);
+    }
+    await queryClient.refetchQueries({ queryKey: ["user-profile"] });
+    await refreshUser();
+  };
+
   const updateProfile = useMutation({
     mutationFn: () =>
       apiFetch<UserProfile>("/api/users/me/profile", {
@@ -50,8 +72,8 @@ export default function ProfileCard() {
           city: city || null,
         }),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+    onSuccess: async (data) => {
+      await refetchProfile(data);
       setSaved(true);
       setEditing(false);
       setTimeout(() => setSaved(false), 2000);
@@ -64,7 +86,7 @@ export default function ProfileCard() {
       form.append("file", file);
       return apiUpload<{ avatar_url: string }>("/api/users/me/avatar", form);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
+    onSuccess: () => refetchProfile(),
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -78,7 +100,7 @@ export default function ProfileCard() {
     <div className="card-surface">
       <div className="flex flex-col sm:flex-row gap-4 items-start">
         <div className="relative shrink-0">
-          <Avatar name={profile.full_name} src={profile.avatar_url} size="lg" />
+          <Avatar name={profile.full_name} src={profile.avatar_url} gender={profile.gender} size="lg" />
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
@@ -99,13 +121,22 @@ export default function ProfileCard() {
           />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-semibold">{profile.full_name}</h2>
-          <p className="text-sm text-muted">{profile.email}</p>
-          {profile.city && <p className="text-sm text-muted mt-1">{profile.city}</p>}
-          {!editing && (
-            <button type="button" onClick={() => setEditing(true)} className="text-primary text-sm mt-2 hover:underline">
-              Редактировать профиль
-            </button>
+          {!editing ? (
+            <>
+              <h2 className="text-lg font-semibold">{profile.full_name}</h2>
+              <dl className="mt-2 space-y-2">
+                <ProfileField label="Эл. почта" value={profile.email} />
+                <ProfileField label="Пол" value={profile.gender ? GENDER_LABELS[profile.gender] : null} />
+                <ProfileField label="Год рождения" value={profile.birth_year?.toString()} />
+                <ProfileField label="Телефон" value={profile.phone} />
+                <ProfileField label="Город" value={profile.city} />
+              </dl>
+              <button type="button" onClick={() => setEditing(true)} className="text-primary text-sm mt-3 hover:underline">
+                Редактировать профиль
+              </button>
+            </>
+          ) : (
+            <p className="text-sm text-muted">Редактирование профиля</p>
           )}
         </div>
       </div>
@@ -124,6 +155,7 @@ export default function ProfileCard() {
                 onChange={(e) => setGender(e.target.value as UserGender | "")}
                 className="form-input"
               >
+                <option value="">Не указан</option>
                 {GENDER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}

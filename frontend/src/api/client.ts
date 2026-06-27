@@ -64,7 +64,7 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
 }
 
 export type UserRole = "student" | "tutor";
-export type UserGender = "male" | "female" | "other" | "prefer_not_say";
+export type UserGender = "male" | "female";
 
 export interface User {
   id: string;
@@ -96,6 +96,7 @@ export interface AuthResponse {
 export interface TutorListItem {
   id: string;
   full_name: string;
+  gender: UserGender | null;
   subjects: string | null;
   bio: string | null;
   avatar_url: string | null;
@@ -107,6 +108,7 @@ export interface TutorDetail {
   id: string;
   full_name: string;
   email: string;
+  gender: UserGender | null;
   subjects: string | null;
   bio: string | null;
   default_meeting_url: string | null;

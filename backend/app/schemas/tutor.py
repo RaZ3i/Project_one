@@ -2,6 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models.user import UserGender
+
 
 class TutorProfileUpdate(BaseModel):
     bio: str | None = None
@@ -21,6 +23,7 @@ class TutorProfileUpdate(BaseModel):
 class TutorListItem(BaseModel):
     id: UUID
     full_name: str
+    gender: UserGender | None = None
     subjects: str | None = None
     bio: str | None = None
     avatar_url: str | None = None
@@ -34,6 +37,7 @@ class TutorDetail(BaseModel):
     id: UUID
     full_name: str
     email: str
+    gender: UserGender | None = None
     subjects: str | None = None
     bio: str | None = None
     default_meeting_url: str | None = None
