@@ -168,9 +168,8 @@ export default function Layout() {
       </main>
 
       <footer className="hidden md:block border-t border-theme bg-surface py-4">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between text-sm text-muted">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-sm text-muted">
           <span>TutorHub — платформа репетиторства</span>
-          <ThemeToggle />
         </div>
       </footer>
 
