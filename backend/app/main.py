@@ -1,9 +1,12 @@
 from pathlib import Path
+from typing import ClassVar
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 from app.api.routes import auth, health, lessons, reviews, slots, subjects, tutors, users
 from app.core.config import get_settings
@@ -21,6 +24,37 @@ api_router.include_router(slots.router)
 api_router.include_router(lessons.router)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+IMMUTABLE_ASSET_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+
+class CachedStaticFiles(StaticFiles):
+    """StaticFiles with long-lived cache for content-hashed build assets."""
+
+    cache_control: ClassVar[str] = IMMUTABLE_ASSET_HEADERS["Cache-Control"]
+
+    def file_response(
+        self,
+        full_path,
+        stat_result,
+        scope: Scope,
+        status_code: int = 200,
+    ) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["Cache-Control"] = self.cache_control
+        return response
+
+
+def spa_file_response(path: Path) -> FileResponse:
+    """Serve index.html and other SPA shell files without browser caching."""
+    if path.name == "index.html" or path.suffix == ".html":
+        return FileResponse(path, headers=NO_CACHE_HEADERS)
+    return FileResponse(path)
 
 
 def create_app() -> FastAPI:
@@ -41,7 +75,11 @@ def create_app() -> FastAPI:
     app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
     if STATIC_DIR.exists() and (STATIC_DIR / "assets").exists():
-        app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+        app.mount(
+            "/assets",
+            CachedStaticFiles(directory=STATIC_DIR / "assets"),
+            name="assets",
+        )
 
         @app.get("/{full_path:path}")
         async def spa_fallback(request: Request, full_path: str):
@@ -49,10 +87,10 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail="Не найдено")
             file_path = STATIC_DIR / full_path
             if file_path.is_file():
-                return FileResponse(file_path)
+                return spa_file_response(file_path)
             index = STATIC_DIR / "index.html"
             if index.exists():
-                return FileResponse(index)
+                return spa_file_response(index)
             raise HTTPException(status_code=404, detail="Не найдено")
 
     return app
