@@ -3,6 +3,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 watchPatterns = ["backend/**", "frontend/**", "Dockerfile", "railway.toml"]
 
+[build.buildArgs]
+CACHEBUST = "${{RAILWAY_GIT_COMMIT_SHA}}"
+RAILWAY_GIT_COMMIT_SHA = "${{RAILWAY_GIT_COMMIT_SHA}}"
+
 [deploy]
 startCommand = "./entrypoint.sh"
 healthcheckPath = "/api/health"

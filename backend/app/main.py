@@ -1,9 +1,11 @@
+import os
+import re
 from pathlib import Path
 from typing import ClassVar
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
@@ -24,13 +26,19 @@ api_router.include_router(slots.router)
 api_router.include_router(lessons.router)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+BUILD_ID = os.getenv("BUILD_ID") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "dev"
 
 NO_CACHE_HEADERS = {
-    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "CDN-Cache-Control": "no-store",
+    "Surrogate-Control": "no-store",
     "Pragma": "no-cache",
     "Expires": "0",
+    "Vary": "Accept-Encoding",
 }
 IMMUTABLE_ASSET_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
+
+_BUILD_ID_META_RE = re.compile(r'<meta name="build-id" content="[^"]*"\s*/?>', re.IGNORECASE)
 
 
 class CachedStaticFiles(StaticFiles):
@@ -50,15 +58,41 @@ class CachedStaticFiles(StaticFiles):
         return response
 
 
-def spa_file_response(path: Path) -> FileResponse:
-    """Serve index.html and other SPA shell files without browser caching."""
+def inject_build_id(html: str) -> str:
+    """Ensure index.html carries the deploy build id for debugging and CDN busting."""
+    meta = f'<meta name="build-id" content="{BUILD_ID}" />'
+    if _BUILD_ID_META_RE.search(html):
+        return _BUILD_ID_META_RE.sub(meta, html, count=1)
+    return html.replace("<head>", f"<head>\n    {meta}", 1)
+
+
+def spa_index_response() -> HTMLResponse:
+    """Serve index.html with runtime build id and strict no-cache headers."""
+    index = STATIC_DIR / "index.html"
+    html = inject_build_id(index.read_text(encoding="utf-8"))
+    return HTMLResponse(html, headers=NO_CACHE_HEADERS)
+
+
+def spa_file_response(path: Path) -> Response:
+    """Serve index.html and other SPA shell files without browser or CDN caching."""
     if path.name == "index.html" or path.suffix == ".html":
+        if path.name == "index.html":
+            return spa_index_response()
         return FileResponse(path, headers=NO_CACHE_HEADERS)
     return FileResponse(path)
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Платформа репетиторства", version="1.0.0")
+
+    @app.middleware("http")
+    async def enforce_no_cache_html(request: Request, call_next):
+        response = await call_next(request)
+        content_type = response.headers.get("content-type", "")
+        if content_type.startswith("text/html"):
+            for key, value in NO_CACHE_HEADERS.items():
+                response.headers[key] = value
+        return response
 
     app.add_middleware(
         CORSMiddleware,
@@ -75,6 +109,14 @@ def create_app() -> FastAPI:
     app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
     if STATIC_DIR.exists() and (STATIC_DIR / "assets").exists():
+
+        @app.get("/")
+        async def spa_root():
+            index = STATIC_DIR / "index.html"
+            if index.exists():
+                return spa_index_response()
+            raise HTTPException(status_code=404, detail="Не найдено")
+
         app.mount(
             "/assets",
             CachedStaticFiles(directory=STATIC_DIR / "assets"),
@@ -90,7 +132,7 @@ def create_app() -> FastAPI:
                 return spa_file_response(file_path)
             index = STATIC_DIR / "index.html"
             if index.exists():
-                return spa_file_response(index)
+                return spa_index_response()
             raise HTTPException(status_code=404, detail="Не найдено")
 
     return app
