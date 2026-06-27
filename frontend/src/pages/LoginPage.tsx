@@ -26,9 +26,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Вход</h1>
-      <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow-sm border">
+    <div className="max-w-md mx-auto w-full">
+      <h1 className="page-title">Вход</h1>
+      <form onSubmit={handleSubmit} className="space-y-4 card-surface">
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <div>
           <label className="block text-sm font-medium mb-1">Эл. почта</label>
@@ -37,7 +37,8 @@ export default function LoginPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
+            className="form-input"
+            autoComplete="email"
           />
         </div>
         <div>
@@ -48,20 +49,17 @@ export default function LoginPage() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
+            className="form-input"
+            autoComplete="current-password"
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? "Вход..." : "Войти"}
         </button>
       </form>
-      <p className="text-center mt-4 text-sm text-slate-600">
+      <p className="text-center mt-4 text-sm text-muted">
         Нет аккаунта?{" "}
-        <Link to="/register" className="text-indigo-600 hover:underline">
+        <Link to="/register" className="text-primary hover:underline touch-target inline-flex items-center">
           Зарегистрироваться
         </Link>
       </p>

@@ -5,6 +5,11 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./api/auth";
 import "./index.css";
+import { initViewMode } from "./hooks/useViewMode";
+import { initTheme } from "./hooks/useTheme";
+
+initViewMode();
+initTheme();
 
 const queryClient = new QueryClient();
 

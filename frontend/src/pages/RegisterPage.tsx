@@ -28,9 +28,9 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Создать аккаунт</h1>
-      <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow-sm border">
+    <div className="max-w-md mx-auto w-full">
+      <h1 className="page-title">Создать аккаунт</h1>
+      <form onSubmit={handleSubmit} className="space-y-4 card-surface">
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <div>
           <label className="block text-sm font-medium mb-1">Полное имя</label>
@@ -39,7 +39,8 @@ export default function RegisterPage() {
             required
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
+            className="form-input"
+            autoComplete="name"
           />
         </div>
         <div>
@@ -49,7 +50,8 @@ export default function RegisterPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
+            className="form-input"
+            autoComplete="email"
           />
         </div>
         <div>
@@ -60,13 +62,14 @@ export default function RegisterPage() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
+            className="form-input"
+            autoComplete="new-password"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Я —</label>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <label className="flex items-center gap-2 touch-target cursor-pointer">
               <input
                 type="radio"
                 name="role"
@@ -75,7 +78,7 @@ export default function RegisterPage() {
               />
               Ученик
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 touch-target cursor-pointer">
               <input
                 type="radio"
                 name="role"
@@ -86,17 +89,13 @@ export default function RegisterPage() {
             </label>
           </div>
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? "Создание..." : "Зарегистрироваться"}
         </button>
       </form>
-      <p className="text-center mt-4 text-sm text-slate-600">
+      <p className="text-center mt-4 text-sm text-muted">
         Уже есть аккаунт?{" "}
-        <Link to="/login" className="text-indigo-600 hover:underline">
+        <Link to="/login" className="text-primary hover:underline touch-target inline-flex items-center">
           Войти
         </Link>
       </p>

@@ -23,6 +23,9 @@ class TutorListItem(BaseModel):
     full_name: str
     subjects: str | None = None
     bio: str | None = None
+    avatar_url: str | None = None
+    avg_rating: float | None = None
+    review_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -34,5 +37,8 @@ class TutorDetail(BaseModel):
     subjects: str | None = None
     bio: str | None = None
     default_meeting_url: str | None = None
+    avatar_url: str | None = None
+    avg_rating: float | None = None
+    review_count: int = 0
 
     model_config = {"from_attributes": True}

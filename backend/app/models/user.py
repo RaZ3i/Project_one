@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, String, Text, func
+from sqlalchemy import DateTime, Enum, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,6 +14,13 @@ class UserRole(str, enum.Enum):
     tutor = "tutor"
 
 
+class UserGender(str, enum.Enum):
+    male = "male"
+    female = "female"
+    other = "other"
+    prefer_not_say = "prefer_not_say"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -22,6 +29,11 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    gender: Mapped[UserGender | None] = mapped_column(Enum(UserGender, name="user_gender"), nullable=True)
+    birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tutor_profile: Mapped["TutorProfile | None"] = relationship(
@@ -36,8 +48,15 @@ class User(Base):
     tutor_lessons: Mapped[list["Lesson"]] = relationship(
         "Lesson", back_populates="tutor", foreign_keys="Lesson.tutor_id"
     )
+    reviews_written: Mapped[list["Review"]] = relationship(
+        "Review", back_populates="student", foreign_keys="Review.student_id"
+    )
+    reviews_received: Mapped[list["Review"]] = relationship(
+        "Review", back_populates="tutor", foreign_keys="Review.tutor_id"
+    )
 
 
 from app.models.tutor_profile import TutorProfile  # noqa: E402
 from app.models.slot import AvailabilitySlot  # noqa: E402
 from app.models.lesson import Lesson  # noqa: E402
+from app.models.review import Review  # noqa: E402
