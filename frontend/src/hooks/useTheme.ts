@@ -22,8 +22,13 @@ export function getStoredTheme(): Theme {
   return "light";
 }
 
+function enableThemeTransition(): void {
+  document.documentElement.classList.add("theme-transition");
+}
+
 export function setStoredTheme(theme: Theme): void {
   localStorage.setItem(STORAGE_KEY, theme);
+  enableThemeTransition();
   applyTheme(theme);
 }
 

@@ -1,10 +1,11 @@
 """Заполнение демо-данными для платформы репетиторства."""
 
+import argparse
 import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.database import async_session_maker
 from app.core.security import get_password_hash
@@ -116,13 +117,56 @@ REVIEWS_DATA = [
     (1, 5, 4, "Грамотный преподаватель истории."),
 ]
 
+DEMO_EMAILS = [t["email"] for t in TUTORS] + [s["email"] for s in STUDENTS]
 
-async def seed() -> None:
+
+async def clear_demo_data(db) -> int:
+    result = await db.execute(select(User).where(User.email.in_(DEMO_EMAILS)))
+    users = result.scalars().all()
+    if not users:
+        return 0
+
+    user_ids = [u.id for u in users]
+    await db.execute(
+        delete(Review).where(
+            (Review.student_id.in_(user_ids)) | (Review.tutor_id.in_(user_ids))
+        )
+    )
+    await db.execute(
+        delete(Lesson).where(
+            (Lesson.student_id.in_(user_ids)) | (Lesson.tutor_id.in_(user_ids))
+        )
+    )
+    await db.execute(delete(AvailabilitySlot).where(AvailabilitySlot.tutor_id.in_(user_ids)))
+    await db.execute(delete(TutorProfile).where(TutorProfile.user_id.in_(user_ids)))
+    await db.execute(delete(User).where(User.email.in_(DEMO_EMAILS)))
+    await db.flush()
+    return len(users)
+
+
+FORCE_HINT = "python3 -m scripts.seed --force"
+
+
+async def seed(force: bool = False) -> None:
     async with async_session_maker() as db:
-        existing = await db.execute(select(User).limit(1))
-        if existing.scalar_one_or_none():
-            print("Database already has data, skipping seed.")
-            return
+        if force:
+            cleared = await clear_demo_data(db)
+            if cleared:
+                print(f"Cleared {cleared} demo user(s) and related data.")
+            await db.commit()
+        else:
+            demo_existing = await db.execute(
+                select(User).where(User.email.in_(DEMO_EMAILS)).limit(1)
+            )
+            if demo_existing.scalar_one_or_none():
+                print("Demo data already exists, skipping seed.")
+                print(f"Re-seed with: {FORCE_HINT}")
+                return
+            existing = await db.execute(select(User).limit(1))
+            if existing.scalar_one_or_none():
+                print("Database already has data, skipping seed.")
+                print(f"Re-seed demo data with: {FORCE_HINT}")
+                return
 
         password_hash = get_password_hash("password123")
         tutor_users: list[User] = []
@@ -242,4 +286,11 @@ async def seed() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    parser = argparse.ArgumentParser(description="Seed TutorHub demo data")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=f"Delete demo users (by email) and re-seed ({FORCE_HINT})",
+    )
+    args = parser.parse_args()
+    asyncio.run(seed(force=args.force))

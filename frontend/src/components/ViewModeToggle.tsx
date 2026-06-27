@@ -22,7 +22,7 @@ export default function ViewModeToggle() {
     <button
       type="button"
       onClick={toggle}
-      className="view-mode-toggle touch-target text-sm text-muted hover:text-primary transition-colors"
+      className="view-mode-toggle md:hidden touch-target text-sm text-muted hover:text-primary transition-colors"
       aria-label={mode === "mobile" ? "Переключить на полную версию" : "Переключить на мобильную версию"}
     >
       {mode === "mobile" ? "Полная версия" : "Мобильная версия"}
