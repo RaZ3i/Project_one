@@ -108,17 +108,92 @@ STUDENTS = [
     {"email": "nikita.student@example.com", "full_name": "Никита Белов", "gender": UserGender.male, "birth_year": 2009, "city": "Екатеринбург"},
 ]
 
+# (student_idx, tutor_idx, rating, comment) — one review per student-tutor pair
 REVIEWS_DATA = [
     (0, 0, 5, "Отличный репетитор! Объясняет понятно и терпеливо."),
     (1, 0, 4, "Хорошие занятия, заметный прогресс за месяц."),
     (2, 1, 5, "Помогла подготовиться к экзамену, рекомендую."),
     (3, 2, 4, "Интересные эксперименты на уроках физики."),
     (4, 3, 5, "Сдал химию на 5 благодаря Дмитрию."),
-    (0, 4, 5, "Лучший репетитор по математике!"),
+    (0, 4, 5, "Помогла разобраться с сочинением, очень внимательная!"),
     (1, 5, 4, "Грамотный преподаватель истории."),
 ]
 
+# Extra lessons without reviews: (student_idx, tutor_idx, status, days_offset, subject_idx, recording_url)
+# days_offset: negative = past, positive = future
+EXTRA_LESSONS_DATA = [
+    # Мария + Анна: пробный (в REVIEWS) → регулярный завершённый → регулярный запланированный
+    (0, 0, LessonStatus.completed, -14, 1, "https://www.youtube.com/watch?v=demo-maria-algebra"),
+    (0, 0, LessonStatus.scheduled, 2, 0, None),
+    # София + Пётр: завершённый (в REVIEWS) → отменённый повторный
+    (2, 1, LessonStatus.cancelled, -7, 0, None),
+    # Никита + Марина: завершённый пробный, отзыв ещё не оставлен
+    (5, 6, LessonStatus.completed, -12, 0, "https://www.youtube.com/watch?v=demo-informatics"),
+    # Дарья + Алексей: пробный запланированный
+    (4, 7, LessonStatus.scheduled, 4, 0, None),
+]
+
 DEMO_EMAILS = [t["email"] for t in TUTORS] + [s["email"] for s in STUDENTS]
+
+RECORDING_URL_DEMO = "https://www.youtube.com/watch?v=demo123"
+
+
+def tutor_subject(tutor_idx: int, subject_idx: int = 0) -> str:
+    subjects = parse_tutor_subjects(TUTORS[tutor_idx]["subjects"])
+    if not subjects:
+        return "Математика"
+    return subjects[min(subject_idx, len(subjects) - 1)]
+
+
+def lesson_type_for_pair(
+    pair: tuple[uuid.UUID, uuid.UUID], pairs_seen: set[tuple[uuid.UUID, uuid.UUID]]
+) -> LessonType:
+    lesson_type = LessonType.regular if pair in pairs_seen else LessonType.trial
+    pairs_seen.add(pair)
+    return lesson_type
+
+
+async def add_lesson(
+    db,
+    *,
+    student_users: list[User],
+    tutor_users: list[User],
+    base: datetime,
+    student_idx: int,
+    tutor_idx: int,
+    status: LessonStatus,
+    days_offset: int,
+    subject_idx: int,
+    recording_url: str | None,
+    pairs_seen: set[tuple[uuid.UUID, uuid.UUID]],
+    hour: int = 14,
+) -> Lesson:
+    pair = (student_users[student_idx].id, tutor_users[tutor_idx].id)
+    lesson_type = lesson_type_for_pair(pair, pairs_seen)
+    slot_booked = status in (LessonStatus.scheduled, LessonStatus.completed)
+
+    slot = AvailabilitySlot(
+        tutor_id=tutor_users[tutor_idx].id,
+        starts_at=base + timedelta(days=days_offset, hours=hour),
+        ends_at=base + timedelta(days=days_offset, hours=hour + 1),
+        is_booked=slot_booked,
+    )
+    db.add(slot)
+    await db.flush()
+
+    lesson = Lesson(
+        student_id=student_users[student_idx].id,
+        tutor_id=tutor_users[tutor_idx].id,
+        slot_id=slot.id,
+        status=status,
+        subject=tutor_subject(tutor_idx, subject_idx),
+        lesson_type=lesson_type,
+        meeting_url=TUTORS[tutor_idx]["meeting_url"],
+        recording_url=recording_url if status == LessonStatus.completed else None,
+    )
+    db.add(lesson)
+    await db.flush()
+    return lesson
 
 
 async def clear_demo_data(db) -> int:
@@ -215,50 +290,38 @@ async def seed(force: bool = False) -> None:
             )
 
         base = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-        slots: list[AvailabilitySlot] = []
         for i, tutor in enumerate(tutor_users):
             for day_offset in range(1, 4):
-                slot = AvailabilitySlot(
-                    tutor_id=tutor.id,
-                    starts_at=base + timedelta(days=day_offset, hours=10 + i),
-                    ends_at=base + timedelta(days=day_offset, hours=11 + i),
+                db.add(
+                    AvailabilitySlot(
+                        tutor_id=tutor.id,
+                        starts_at=base + timedelta(days=day_offset, hours=10 + i),
+                        ends_at=base + timedelta(days=day_offset, hours=11 + i),
+                    )
                 )
-                slots.append(slot)
-                db.add(slot)
 
         await db.flush()
 
-        completed_lessons: list[Lesson] = []
-        student_tutor_pairs: set[tuple[uuid.UUID, uuid.UUID]] = set()
+        pairs_seen: set[tuple[uuid.UUID, uuid.UUID]] = set()
+        completed_count = 0
+        scheduled_count = 0
+        cancelled_count = 0
+
         for idx, (student_idx, tutor_idx, rating, comment) in enumerate(REVIEWS_DATA):
-            slot = AvailabilitySlot(
-                tutor_id=tutor_users[tutor_idx].id,
-                starts_at=base - timedelta(days=30 - idx, hours=14),
-                ends_at=base - timedelta(days=30 - idx, hours=15),
-                is_booked=True,
-            )
-            db.add(slot)
-            await db.flush()
-
-            pair = (student_users[student_idx].id, tutor_users[tutor_idx].id)
-            lesson_type = LessonType.regular if pair in student_tutor_pairs else LessonType.trial
-            student_tutor_pairs.add(pair)
-            tutor_subjects = parse_tutor_subjects(TUTORS[tutor_idx]["subjects"])
-            subject = tutor_subjects[0] if tutor_subjects else "Математика"
-
-            lesson = Lesson(
-                student_id=student_users[student_idx].id,
-                tutor_id=tutor_users[tutor_idx].id,
-                slot_id=slot.id,
+            lesson = await add_lesson(
+                db,
+                student_users=student_users,
+                tutor_users=tutor_users,
+                base=base,
+                student_idx=student_idx,
+                tutor_idx=tutor_idx,
                 status=LessonStatus.completed,
-                subject=subject,
-                lesson_type=lesson_type,
-                meeting_url=TUTORS[tutor_idx]["meeting_url"],
-                recording_url="https://www.youtube.com/watch?v=demo123" if idx % 2 == 0 else None,
+                days_offset=-(30 - idx),
+                subject_idx=0,
+                recording_url=RECORDING_URL_DEMO if idx % 2 == 0 else None,
+                pairs_seen=pairs_seen,
             )
-            db.add(lesson)
-            await db.flush()
-            completed_lessons.append(lesson)
+            completed_count += 1
 
             db.add(
                 Review(
@@ -270,32 +333,37 @@ async def seed(force: bool = False) -> None:
                 )
             )
 
-        upcoming_slot = AvailabilitySlot(
-            tutor_id=tutor_users[0].id,
-            starts_at=base + timedelta(days=2, hours=10),
-            ends_at=base + timedelta(days=2, hours=11),
-            is_booked=True,
-        )
-        db.add(upcoming_slot)
-        await db.flush()
-        db.add(
-            Lesson(
-                student_id=student_users[0].id,
-                tutor_id=tutor_users[0].id,
-                slot_id=upcoming_slot.id,
-                status=LessonStatus.scheduled,
-                subject="Математика",
-                lesson_type=LessonType.regular,
-                meeting_url=TUTORS[0]["meeting_url"],
+        for student_idx, tutor_idx, status, days_offset, subject_idx, recording_url in EXTRA_LESSONS_DATA:
+            await add_lesson(
+                db,
+                student_users=student_users,
+                tutor_users=tutor_users,
+                base=base,
+                student_idx=student_idx,
+                tutor_idx=tutor_idx,
+                status=status,
+                days_offset=days_offset,
+                subject_idx=subject_idx,
+                recording_url=recording_url,
+                pairs_seen=pairs_seen,
+                hour=10 if status == LessonStatus.scheduled else 14,
             )
-        )
+            if status == LessonStatus.completed:
+                completed_count += 1
+            elif status == LessonStatus.scheduled:
+                scheduled_count += 1
+            elif status == LessonStatus.cancelled:
+                cancelled_count += 1
 
         await db.commit()
+        total_lessons = completed_count + scheduled_count + cancelled_count
         print("Seed complete.")
         print(f"  Tutors: {len(tutor_users)} accounts (password123)")
         print(f"  Students: {len(student_users)} accounts (password123)")
-        print(f"  Reviews: {len(REVIEWS_DATA)}, completed lessons: {len(completed_lessons)}")
+        print(f"  Lessons: {total_lessons} ({completed_count} completed, {scheduled_count} scheduled, {cancelled_count} cancelled)")
+        print(f"  Reviews: {len(REVIEWS_DATA)} (unique student-tutor pairs)")
         print("  Demo student: student@example.com / password123")
+        print("    → trial + review with Анна, regular completed, regular scheduled upcoming")
 
 
 if __name__ == "__main__":
