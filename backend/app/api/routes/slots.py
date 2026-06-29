@@ -55,6 +55,9 @@ async def create_slot(
     if data.starts_at <= datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Слот должен быть в будущем")
 
+    if data.ends_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Время окончания слота должно быть в будущем")
+
     slot = AvailabilitySlot(
         tutor_id=tutor.id,
         starts_at=data.starts_at,

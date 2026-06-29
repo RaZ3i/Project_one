@@ -3,6 +3,7 @@ from app.models.tutor_profile import TutorProfile
 from app.models.slot import AvailabilitySlot
 from app.models.lesson import Lesson, LessonStatus
 from app.models.review import Review
+from app.models.notification import Notification, NotificationType
 
 __all__ = [
     "User",
@@ -13,4 +14,6 @@ __all__ = [
     "Lesson",
     "LessonStatus",
     "Review",
+    "Notification",
+    "NotificationType",
 ]

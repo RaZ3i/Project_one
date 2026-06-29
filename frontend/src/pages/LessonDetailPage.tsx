@@ -11,14 +11,8 @@ import {
 } from "../api/client";
 import { useAuth } from "../api/auth";
 import Avatar from "../components/Avatar";
-
-function formatTimeRange(starts: string | null, ends: string | null) {
-  if (!starts) return "—";
-  const start = new Date(starts).toLocaleString("ru-RU");
-  if (!ends) return start;
-  const endTime = new Date(ends).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-  return `${start} – ${endTime}`;
-}
+import CancelLessonModal from "../components/CancelLessonModal";
+import { formatTimeRange, isUpcomingLesson, lessonHasEnded } from "../utils/formatDate";
 
 function RecordingUrlForm({ lesson }: { lesson: Lesson }) {
   const queryClient = useQueryClient();
@@ -66,6 +60,7 @@ export default function LessonDetailPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const { data: lesson, isLoading, error } = useQuery({
     queryKey: ["lesson", id],
@@ -79,6 +74,8 @@ export default function LessonDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lesson", id] });
       queryClient.invalidateQueries({ queryKey: ["my-lessons"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
     },
   });
 
@@ -88,6 +85,8 @@ export default function LessonDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lesson", id] });
       queryClient.invalidateQueries({ queryKey: ["my-lessons"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
     },
   });
 
@@ -108,8 +107,9 @@ export default function LessonDetailPage() {
   const counterpartName = isStudent ? lesson.tutor_name : lesson.student_name;
   const counterpartAvatar = isStudent ? lesson.tutor_avatar_url : lesson.student_avatar_url;
   const counterpartGender = isStudent ? lesson.tutor_gender : lesson.student_gender;
-  const isUpcoming =
-    lesson.status === "scheduled" && lesson.slot_starts_at && new Date(lesson.slot_starts_at) > new Date();
+  const isUpcoming = isUpcomingLesson(lesson.status, lesson.slot_starts_at);
+  const canComplete = isTutor && lesson.status === "scheduled" && lessonHasEnded(lesson.slot_ends_at, lesson.slot_starts_at);
+  const canTutorCancel = isTutor && isUpcoming;
   const dashboardPath = isTutor ? "/tutor/dashboard" : "/dashboard";
 
   return (
@@ -153,6 +153,13 @@ export default function LessonDetailPage() {
           <p className="font-medium">{formatTimeRange(lesson.slot_starts_at, lesson.slot_ends_at)}</p>
         </div>
 
+        {lesson.status === "cancelled" && lesson.cancellation_reason && (
+          <div>
+            <p className="text-sm text-muted">Причина отмены</p>
+            <p className="font-medium text-amber-700 dark:text-amber-300">{lesson.cancellation_reason}</p>
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
           <Avatar name={counterpartName ?? "?"} src={counterpartAvatar} gender={counterpartGender} size="md" />
           <div>
@@ -186,28 +193,52 @@ export default function LessonDetailPage() {
           </div>
         )}
 
-        {isStudent && isUpcoming && (
-          <button
-            onClick={() => cancelMutation.mutate()}
-            disabled={cancelMutation.isPending}
-            className="btn-danger-text text-sm"
-          >
-            Отменить занятие
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {isStudent && isUpcoming && (
+            <button
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+              className="btn-danger-text text-sm"
+            >
+              Отменить занятие
+            </button>
+          )}
 
-        {isTutor && lesson.status === "scheduled" && (
-          <button
-            onClick={() => completeMutation.mutate()}
-            disabled={completeMutation.isPending}
-            className="btn-primary text-sm"
-          >
-            Завершить урок
-          </button>
-        )}
+          {canTutorCancel && (
+            <button
+              onClick={() => setShowCancelModal(true)}
+              className="btn-danger-text text-sm"
+            >
+              Отменить занятие
+            </button>
+          )}
+
+          {canComplete && (
+            <button
+              onClick={() => completeMutation.mutate()}
+              disabled={completeMutation.isPending}
+              className="btn-primary text-sm"
+            >
+              Завершить урок
+            </button>
+          )}
+        </div>
       </div>
 
       {isTutor && lesson.status === "completed" && <RecordingUrlForm lesson={lesson} />}
+
+      {showCancelModal && id && (
+        <CancelLessonModal
+          lessonId={id}
+          onClose={() => setShowCancelModal(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["lesson", id] });
+            queryClient.invalidateQueries({ queryKey: ["my-lessons"] });
+            queryClient.invalidateQueries({ queryKey: ["notifications"] });
+            queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+          }}
+        />
+      )}
     </div>
   );
 }

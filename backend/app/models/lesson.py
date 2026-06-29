@@ -43,6 +43,7 @@ class Lesson(Base):
     meeting_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     recording_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cancellation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     student: Mapped["User"] = relationship("User", back_populates="student_lessons", foreign_keys=[student_id])

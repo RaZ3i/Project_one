@@ -6,15 +6,7 @@ import { useAuth } from "../api/auth";
 import Avatar from "../components/Avatar";
 import { RatingBadge, StarRating } from "../components/RatingDisplay";
 
-function formatSlotTime(iso: string) {
-  return new Date(iso).toLocaleString("ru-RU", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { formatTimeRange } from "../utils/formatDate";
 
 function parseSubjects(subjects: string | null): string[] {
   if (!subjects) return [];
@@ -238,7 +230,7 @@ export default function TutorDetailPage() {
               className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 card-surface"
             >
               <span className="text-sm sm:text-base">
-                {formatSlotTime(slot.starts_at)} – {formatSlotTime(slot.ends_at).split(", ").pop()}
+                {formatTimeRange(slot.starts_at, slot.ends_at)}
               </span>
               <button
                 onClick={() => handleBook(slot.id)}

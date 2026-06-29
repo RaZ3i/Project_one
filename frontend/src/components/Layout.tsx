@@ -4,6 +4,7 @@ import { useAuth } from "../api/auth";
 import ViewModeToggle from "./ViewModeToggle";
 import ThemeToggle from "./ThemeToggle";
 import SiteLogo from "./SiteLogo";
+import NotificationBell from "./NotificationBell";
 
 function NavLink({
   to,
@@ -84,6 +85,7 @@ export default function Layout() {
             {user ? (
               <>
                 <NavLink to={dashboardPath}>Личный кабинет</NavLink>
+                <NotificationBell />
                 <span className="text-muted px-2 hidden lg:inline">{user.full_name}</span>
                 <button
                   onClick={handleLogout}
@@ -107,6 +109,7 @@ export default function Layout() {
           </nav>
 
           <div className="flex items-center gap-1 md:hidden">
+            {user && <NotificationBell />}
             <ThemeToggle />
             <ViewModeToggle />
             <button

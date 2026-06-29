@@ -17,6 +17,7 @@ class LessonUpdate(BaseModel):
     meeting_url: str | None = Field(default=None, max_length=500)
     recording_url: str | None = Field(default=None, max_length=500)
     notes: str | None = None
+    cancellation_reason: str | None = Field(default=None, max_length=1000)
 
     @field_validator("meeting_url", "recording_url")
     @classmethod
@@ -40,6 +41,7 @@ class LessonResponse(BaseModel):
     recording_url: str | None
     effective_meeting_url: str | None = None
     notes: str | None
+    cancellation_reason: str | None = None
     created_at: datetime
     slot_starts_at: datetime | None = None
     slot_ends_at: datetime | None = None

@@ -52,9 +52,13 @@ class User(Base):
     reviews_received: Mapped[list["Review"]] = relationship(
         "Review", back_populates="tutor", foreign_keys="Review.tutor_id"
     )
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 from app.models.tutor_profile import TutorProfile  # noqa: E402
 from app.models.slot import AvailabilitySlot  # noqa: E402
 from app.models.lesson import Lesson  # noqa: E402
 from app.models.review import Review  # noqa: E402
+from app.models.notification import Notification  # noqa: E402

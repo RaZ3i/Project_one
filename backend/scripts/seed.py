@@ -11,6 +11,7 @@ from app.core.database import async_session_maker
 from app.core.security import get_password_hash
 from app.core.subjects import parse_tutor_subjects
 from app.models.lesson import Lesson, LessonStatus, LessonType
+from app.models.notification import Notification, NotificationType
 from app.models.review import Review
 from app.models.slot import AvailabilitySlot
 from app.models.tutor_profile import TutorProfile
@@ -119,18 +120,22 @@ REVIEWS_DATA = [
     (1, 5, 4, "Грамотный преподаватель истории."),
 ]
 
-# Extra lessons without reviews: (student_idx, tutor_idx, status, days_offset, subject_idx, recording_url)
+# Extra lessons without reviews: (student_idx, tutor_idx, status, days_offset, subject_idx, recording_url, cancellation_reason)
 # days_offset: negative = past, positive = future
 EXTRA_LESSONS_DATA = [
     # Мария + Анна: пробный (в REVIEWS) → регулярный завершённый → регулярный запланированный
-    (0, 0, LessonStatus.completed, -14, 1, "https://www.youtube.com/watch?v=demo-maria-algebra"),
-    (0, 0, LessonStatus.scheduled, 2, 0, None),
+    (0, 0, LessonStatus.completed, -14, 1, "https://www.youtube.com/watch?v=demo-maria-algebra", None),
+    (0, 0, LessonStatus.scheduled, 2, 0, None, None),
     # София + Пётр: завершённый (в REVIEWS) → отменённый повторный
-    (2, 1, LessonStatus.cancelled, -7, 0, None),
+    (2, 1, LessonStatus.cancelled, -7, 0, None, "Репетитор заболел, перенесём на следующую неделю"),
     # Никита + Марина: завершённый пробный, отзыв ещё не оставлен
-    (5, 6, LessonStatus.completed, -12, 0, "https://www.youtube.com/watch?v=demo-informatics"),
+    (5, 6, LessonStatus.completed, -12, 0, "https://www.youtube.com/watch?v=demo-informatics", None),
     # Дарья + Алексей: пробный запланированный
-    (4, 7, LessonStatus.scheduled, 4, 0, None),
+    (4, 7, LessonStatus.scheduled, 4, 0, None, None),
+    # Иван + Сергей: запланированный через 1 день (для напоминаний)
+    (1, 5, LessonStatus.scheduled, 1, 0, None, None),
+    # Артём + Елена: завершённый вчера (можно завершить/просмотреть)
+    (3, 2, LessonStatus.completed, -1, 0, None, None),
 ]
 
 DEMO_EMAILS = [t["email"] for t in TUTORS] + [s["email"] for s in STUDENTS]
@@ -167,6 +172,7 @@ async def add_lesson(
     recording_url: str | None,
     pairs_seen: set[tuple[uuid.UUID, uuid.UUID]],
     hour: int = 14,
+    cancellation_reason: str | None = None,
 ) -> Lesson:
     pair = (student_users[student_idx].id, tutor_users[tutor_idx].id)
     lesson_type = lesson_type_for_pair(pair, pairs_seen)
@@ -190,10 +196,16 @@ async def add_lesson(
         lesson_type=lesson_type,
         meeting_url=TUTORS[tutor_idx]["meeting_url"],
         recording_url=recording_url if status == LessonStatus.completed else None,
+        cancellation_reason=cancellation_reason if status == LessonStatus.cancelled else None,
     )
     db.add(lesson)
     await db.flush()
     return lesson
+
+
+async def _lessons_for_student(db, student_id: uuid.UUID) -> list[Lesson]:
+    result = await db.execute(select(Lesson).where(Lesson.student_id == student_id))
+    return list(result.scalars().all())
 
 
 async def clear_demo_data(db) -> int:
@@ -203,6 +215,9 @@ async def clear_demo_data(db) -> int:
         return 0
 
     user_ids = [u.id for u in users]
+    await db.execute(
+        delete(Notification).where(Notification.user_id.in_(user_ids))
+    )
     await db.execute(
         delete(Review).where(
             (Review.student_id.in_(user_ids)) | (Review.tutor_id.in_(user_ids))
@@ -333,7 +348,7 @@ async def seed(force: bool = False) -> None:
                 )
             )
 
-        for student_idx, tutor_idx, status, days_offset, subject_idx, recording_url in EXTRA_LESSONS_DATA:
+        for student_idx, tutor_idx, status, days_offset, subject_idx, recording_url, cancellation_reason in EXTRA_LESSONS_DATA:
             await add_lesson(
                 db,
                 student_users=student_users,
@@ -347,6 +362,7 @@ async def seed(force: bool = False) -> None:
                 recording_url=recording_url,
                 pairs_seen=pairs_seen,
                 hour=10 if status == LessonStatus.scheduled else 14,
+                cancellation_reason=cancellation_reason,
             )
             if status == LessonStatus.completed:
                 completed_count += 1
@@ -354,6 +370,43 @@ async def seed(force: bool = False) -> None:
                 scheduled_count += 1
             elif status == LessonStatus.cancelled:
                 cancelled_count += 1
+
+        # Demo notifications for main student account
+        maria = student_users[0]
+        anna = tutor_users[0]
+        upcoming_lesson = next(
+            (l for l in await _lessons_for_student(db, maria.id) if l.status == LessonStatus.scheduled),
+            None,
+        )
+        db.add(
+            Notification(
+                user_id=maria.id,
+                type=NotificationType.lesson_reminder,
+                title="Напоминание о занятии",
+                message=f"Завтра занятие по математике с {anna.full_name}. Не забудьте подготовиться!",
+                read=False,
+                related_lesson_id=upcoming_lesson.id if upcoming_lesson else None,
+            )
+        )
+        db.add(
+            Notification(
+                user_id=maria.id,
+                type=NotificationType.lesson_completed,
+                title="Занятие завершено",
+                message=f"Репетитор {anna.full_name} отметил занятие по алгебре как завершённое.",
+                read=True,
+            )
+        )
+        db.add(
+            Notification(
+                user_id=anna.id,
+                type=NotificationType.lesson_booked,
+                title="Новая запись на занятие",
+                message=f"Ученик {maria.full_name} записался на повторное занятие.",
+                read=False,
+                related_lesson_id=upcoming_lesson.id if upcoming_lesson else None,
+            )
+        )
 
         await db.commit()
         total_lessons = completed_count + scheduled_count + cancelled_count

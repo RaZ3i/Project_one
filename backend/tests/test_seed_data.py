@@ -24,7 +24,7 @@ class SeedDataTests(unittest.TestCase):
             self.assertLessEqual(rating, 5)
 
     def test_extra_lesson_indices_in_range(self):
-        for student_idx, tutor_idx, status, _days, subject_idx, _recording in EXTRA_LESSONS_DATA:
+        for student_idx, tutor_idx, status, _days, subject_idx, _recording, _reason in EXTRA_LESSONS_DATA:
             self.assertLess(student_idx, len(STUDENTS))
             self.assertLess(tutor_idx, len(TUTORS))
             self.assertIsInstance(status, LessonStatus)

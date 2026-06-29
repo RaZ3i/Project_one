@@ -3,11 +3,7 @@ import { Link } from "react-router-dom";
 import { apiFetch, LESSON_STATUS_LABELS, type Lesson } from "../api/client";
 import ProfileCard from "../components/ProfileCard";
 import { BookIcon, CalendarIcon } from "../components/icons";
-
-function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("ru-RU");
-}
+import { formatDateTimeHHMM, isUpcomingLesson } from "../utils/formatDate";
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
@@ -29,10 +25,14 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
         method: "PATCH",
         body: JSON.stringify({ status: "cancelled" }),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-lessons"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-lessons"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+    },
   });
 
-  const isUpcoming = lesson.status === "scheduled" && lesson.slot_starts_at && new Date(lesson.slot_starts_at) > new Date();
+  const isUpcoming = isUpcomingLesson(lesson.status, lesson.slot_starts_at);
 
   return (
     <div className="card-surface">
@@ -40,7 +40,12 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
         <div>
           <p className="font-medium">{lesson.tutor_name}</p>
           <p className="text-sm text-muted">{lesson.subject}</p>
-          <p className="text-sm text-muted">{formatDate(lesson.slot_starts_at)}</p>
+          <p className="text-sm text-muted">{formatDateTimeHHMM(lesson.slot_starts_at)}</p>
+          {lesson.status === "cancelled" && lesson.cancellation_reason && (
+            <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+              Причина отмены: {lesson.cancellation_reason}
+            </p>
+          )}
           <span
             className={`inline-block mt-2 text-xs px-2 py-0.5 rounded ${
               lesson.status === "scheduled"
@@ -90,9 +95,7 @@ export default function StudentDashboard() {
 
   if (isLoading) return <p className="text-muted">Загрузка...</p>;
 
-  const upcoming = lessons?.filter(
-    (l) => l.status === "scheduled" && l.slot_starts_at && new Date(l.slot_starts_at) > new Date()
-  ) ?? [];
+  const upcoming = lessons?.filter((l) => isUpcomingLesson(l.status, l.slot_starts_at)) ?? [];
   const completed = lessons?.filter((l) => l.status === "completed") ?? [];
   const past = lessons?.filter(
     (l) => l.status !== "scheduled" || (l.slot_starts_at && new Date(l.slot_starts_at) <= new Date())

@@ -162,6 +162,7 @@ export interface Lesson {
   recording_url: string | null;
   effective_meeting_url: string | null;
   notes: string | null;
+  cancellation_reason: string | null;
   created_at: string;
   slot_starts_at: string | null;
   slot_ends_at: string | null;
@@ -187,4 +188,20 @@ export function getLesson(id: string) {
 
 export function getTutorBookingInfo(tutorId: string) {
   return apiFetch<TutorBookingInfo>(`/api/tutors/${tutorId}/booking-info`);
+}
+
+export type NotificationType =
+  | "lesson_booked"
+  | "lesson_cancelled"
+  | "lesson_completed"
+  | "lesson_reminder";
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  read: boolean;
+  related_lesson_id: string | null;
+  created_at: string;
 }

@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
-from app.api.routes import auth, health, lessons, reviews, slots, subjects, tutors, users
+from app.api.routes import auth, health, lessons, notifications, reviews, slots, subjects, tutors, users
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -24,6 +24,7 @@ api_router.include_router(tutors.router)
 api_router.include_router(reviews.router)
 api_router.include_router(slots.router)
 api_router.include_router(lessons.router)
+api_router.include_router(notifications.router)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 BUILD_ID = os.getenv("BUILD_ID") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "dev"

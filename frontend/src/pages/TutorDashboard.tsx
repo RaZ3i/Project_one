@@ -6,11 +6,9 @@ import { useAuth } from "../api/auth";
 import ProfileCard from "../components/ProfileCard";
 import { RatingBadge, StarRating } from "../components/RatingDisplay";
 import Avatar from "../components/Avatar";
+import CancelLessonModal from "../components/CancelLessonModal";
 import { CalendarIcon, UsersIcon, BookIcon } from "../components/icons";
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("ru-RU");
-}
+import { formatDateTimeHHMM, formatTimeRange, isUpcomingLesson, lessonHasEnded } from "../utils/formatDate";
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
   return (
@@ -34,6 +32,8 @@ export default function TutorDashboard() {
   const [profileSubjects, setProfileSubjects] = useState("");
   const [profileMeetingUrl, setProfileMeetingUrl] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
+
+  const minDateTime = new Date().toISOString().slice(0, 16);
 
   const { data: profile } = useQuery({
     queryKey: ["my-tutor-profile"],
@@ -106,14 +106,18 @@ export default function TutorDashboard() {
   const handleCreateSlot = (e: FormEvent) => {
     e.preventDefault();
     if (!startsAt || !endsAt) return;
+    const start = new Date(startsAt);
+    const end = new Date(endsAt);
+    if (start <= new Date() || end <= new Date()) {
+      setSlotError("Слот должен быть в будущем");
+      return;
+    }
     createSlot.mutate();
   };
 
   const completedLessons = lessons?.filter((l) => l.status === "completed") ?? [];
   const uniqueStudents = new Set(completedLessons.map((l) => l.student_id)).size;
-  const upcomingLessons = lessons?.filter(
-    (l) => l.status === "scheduled" && l.slot_starts_at && new Date(l.slot_starts_at) > new Date()
-  ) ?? [];
+  const upcomingLessons = lessons?.filter((l) => isUpcomingLesson(l.status, l.slot_starts_at)) ?? [];
 
   return (
     <div className="space-y-8 sm:space-y-10">
@@ -207,11 +211,25 @@ export default function TutorDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1">Начало</label>
-              <input type="datetime-local" required value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="form-input" />
+              <input
+                type="datetime-local"
+                required
+                min={minDateTime}
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="form-input"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Окончание</label>
-              <input type="datetime-local" required value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="form-input" />
+              <input
+                type="datetime-local"
+                required
+                min={minDateTime}
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+                className="form-input"
+              />
             </div>
           </div>
           <button type="submit" disabled={createSlot.isPending} className="btn-primary text-sm">
@@ -222,7 +240,7 @@ export default function TutorDashboard() {
           {slots?.map((slot) => (
             <div key={slot.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 card-surface py-3">
               <span className="text-sm">
-                {formatDate(slot.starts_at)} – {formatDate(slot.ends_at)}
+                {formatTimeRange(slot.starts_at, slot.ends_at)}
                 {slot.is_booked && (
                   <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">занято</span>
                 )}
@@ -253,55 +271,86 @@ export default function TutorDashboard() {
 function TutorLessonCard({ lesson }: { lesson: Lesson }) {
   const queryClient = useQueryClient();
   const [meetingUrl, setMeetingUrl] = useState(lesson.meeting_url ?? "");
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   const updateLesson = useMutation({
     mutationFn: (body: Record<string, string>) =>
       apiFetch(`/api/lessons/${lesson.id}`, { method: "PATCH", body: JSON.stringify(body) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-lessons"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-lessons"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+    },
   });
 
+  const canComplete = lesson.status === "scheduled" && lessonHasEnded(lesson.slot_ends_at, lesson.slot_starts_at);
+  const canCancel = lesson.status === "scheduled" && isUpcomingLesson(lesson.status, lesson.slot_starts_at);
+
   return (
-    <div className="card-surface">
-      <div className="flex items-center gap-3 mb-1">
-        <Avatar name={lesson.student_name ?? "?"} size="sm" />
-        <div>
-          <p className="font-medium">{lesson.student_name}</p>
-          <p className="text-sm text-muted">{lesson.subject}</p>
-          <p className="text-sm text-muted">{formatDate(lesson.slot_starts_at ?? lesson.created_at)}</p>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 mt-1">
-        <span className="inline-block text-xs px-2 py-0.5 rounded bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300">
-          {LESSON_STATUS_LABELS[lesson.status]}
-        </span>
-        <Link to={`/lessons/${lesson.id}`} className="text-primary text-xs hover:underline">
-          Подробнее
-        </Link>
-      </div>
-      {lesson.status === "scheduled" && (
-        <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center">
-          <input
-            value={meetingUrl}
-            onChange={(e) => setMeetingUrl(e.target.value)}
-            placeholder="Ссылка на встречу для этого занятия"
-            className="form-input text-sm flex-1 min-w-0"
-          />
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => updateLesson.mutate({ meeting_url: meetingUrl })}
-              className="touch-target text-primary text-sm hover:underline px-2"
-            >
-              Сохранить ссылку
-            </button>
-            <button
-              onClick={() => updateLesson.mutate({ status: "completed" })}
-              className="touch-target bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700"
-            >
-              Завершить
-            </button>
+    <>
+      <div className="card-surface">
+        <div className="flex items-center gap-3 mb-1">
+          <Avatar name={lesson.student_name ?? "?"} size="sm" />
+          <div>
+            <p className="font-medium">{lesson.student_name}</p>
+            <p className="text-sm text-muted">{lesson.subject}</p>
+            <p className="text-sm text-muted">{formatDateTimeHHMM(lesson.slot_starts_at)}</p>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <span className="inline-block text-xs px-2 py-0.5 rounded bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300">
+            {LESSON_STATUS_LABELS[lesson.status]}
+          </span>
+          <Link to={`/lessons/${lesson.id}`} className="text-primary text-xs hover:underline">
+            Подробнее
+          </Link>
+        </div>
+        {lesson.status === "scheduled" && (
+          <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center">
+            <input
+              value={meetingUrl}
+              onChange={(e) => setMeetingUrl(e.target.value)}
+              placeholder="Ссылка на встречу для этого занятия"
+              className="form-input text-sm flex-1 min-w-0"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => updateLesson.mutate({ meeting_url: meetingUrl })}
+                className="touch-target text-primary text-sm hover:underline px-2"
+              >
+                Сохранить ссылку
+              </button>
+              {canCancel && (
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  className="touch-target btn-danger-text text-sm px-2"
+                >
+                  Отменить
+                </button>
+              )}
+              {canComplete && (
+                <button
+                  onClick={() => updateLesson.mutate({ status: "completed" })}
+                  className="touch-target bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700"
+                >
+                  Завершить
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      {showCancelModal && (
+        <CancelLessonModal
+          lessonId={lesson.id}
+          onClose={() => setShowCancelModal(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["my-lessons"] });
+            queryClient.invalidateQueries({ queryKey: ["notifications"] });
+            queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+          }}
+        />
       )}
-    </div>
+    </>
   );
 }

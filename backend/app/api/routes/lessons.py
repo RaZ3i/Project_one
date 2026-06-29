@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -9,14 +10,17 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_student, get_current_user
 from app.core.database import get_db
 from app.models.lesson import Lesson, LessonStatus
+from app.models.notification import NotificationType
 from app.models.user import User, UserRole
 from app.schemas.lesson import LessonCreate, LessonResponse, LessonUpdate
 from app.services.booking import (
     book_lesson,
     cancel_lesson_booking,
+    lesson_has_ended,
     lesson_has_review,
     lesson_to_response,
 )
+from app.services.notifications import create_notification
 
 router = APIRouter(prefix="/lessons", tags=["lessons"])
 
@@ -138,14 +142,56 @@ async def update_lesson(
     if "status" in update_data:
         new_status = update_data["status"]
         if new_status == LessonStatus.cancelled:
-            pass
-        elif new_status == LessonStatus.completed and user.role != UserRole.tutor:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Только репетиторы могут отмечать занятия как завершённые"
-            )
+            if lesson.status != LessonStatus.scheduled:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Можно отменить только запланированное занятие",
+                )
+            if user.role == UserRole.tutor:
+                reason = update_data.get("cancellation_reason")
+                if not reason or not reason.strip():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Укажите причину отмены",
+                    )
+        elif new_status == LessonStatus.completed:
+            if user.role != UserRole.tutor:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Только репетиторы могут отмечать занятия как завершённые",
+                )
+            if lesson.status != LessonStatus.scheduled:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Можно завершить только запланированное занятие",
+                )
+            if not lesson_has_ended(lesson):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Занятие можно завершить только после окончания времени слота",
+                )
 
     if update_data.get("status") == LessonStatus.cancelled:
-        await cancel_lesson_booking(db, lesson)
+        reason = update_data.pop("cancellation_reason", None)
+        await cancel_lesson_booking(
+            db,
+            lesson,
+            cancellation_reason=reason,
+            cancelled_by=user,
+        )
+        update_data.pop("status", None)
+    elif update_data.get("status") == LessonStatus.completed:
+        lesson.status = LessonStatus.completed
+        slot = lesson.slot
+        time_str = slot.starts_at.strftime("%d.%m.%Y %H:%M") if slot and slot.starts_at else ""
+        await create_notification(
+            db,
+            user_id=lesson.student_id,
+            type=NotificationType.lesson_completed,
+            title="Занятие завершено",
+            message=f"Репетитор {user.full_name} отметил занятие по предмету «{lesson.subject}» как завершённое{f' ({time_str})' if time_str else ''}.",
+            related_lesson_id=lesson.id,
+        )
         update_data.pop("status", None)
 
     for key, value in update_data.items():

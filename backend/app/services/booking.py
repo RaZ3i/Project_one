@@ -7,11 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.subjects import subject_allowed_for_tutor
 from app.models.lesson import Lesson, LessonStatus, LessonType
+from app.models.notification import NotificationType
 from app.models.review import Review
 from app.models.slot import AvailabilitySlot
 from app.models.tutor_profile import TutorProfile
 from app.models.user import User, UserRole
 from app.schemas.lesson import LessonResponse
+from app.services.notifications import create_notification
 
 
 def get_effective_meeting_url(lesson: Lesson) -> str | None:
@@ -36,6 +38,7 @@ def lesson_to_response(lesson: Lesson, *, has_review: bool = False) -> LessonRes
         recording_url=lesson.recording_url,
         effective_meeting_url=get_effective_meeting_url(lesson),
         notes=lesson.notes,
+        cancellation_reason=lesson.cancellation_reason,
         created_at=lesson.created_at,
         slot_starts_at=slot.starts_at if slot else None,
         slot_ends_at=slot.ends_at if slot else None,
@@ -63,9 +66,59 @@ async def release_slot(db: AsyncSession, slot_id: UUID) -> None:
         slot.is_booked = False
 
 
-async def cancel_lesson_booking(db: AsyncSession, lesson: Lesson) -> None:
+def lesson_end_time(lesson: Lesson) -> datetime | None:
+    if lesson.slot is None:
+        return None
+    return lesson.slot.ends_at or lesson.slot.starts_at
+
+
+def lesson_has_ended(lesson: Lesson, *, now: datetime | None = None) -> bool:
+    end = lesson_end_time(lesson)
+    if end is None:
+        return False
+    current = now or datetime.now(timezone.utc)
+    return end <= current
+
+
+async def cancel_lesson_booking(
+    db: AsyncSession,
+    lesson: Lesson,
+    *,
+    cancellation_reason: str | None = None,
+    cancelled_by: User | None = None,
+) -> None:
     lesson.status = LessonStatus.cancelled
+    if cancellation_reason:
+        lesson.cancellation_reason = cancellation_reason
     await release_slot(db, lesson.slot_id)
+
+    if cancelled_by is None:
+        return
+
+    slot = lesson.slot
+    time_str = ""
+    if slot and slot.starts_at:
+        time_str = slot.starts_at.strftime("%d.%m.%Y %H:%M")
+
+    if cancelled_by.role == UserRole.tutor and lesson.student:
+        reason_text = f" Причина: {cancellation_reason}" if cancellation_reason else ""
+        await create_notification(
+            db,
+            user_id=lesson.student_id,
+            type=NotificationType.lesson_cancelled,
+            title="Занятие отменено",
+            message=f"Репетитор {cancelled_by.full_name} отменил занятие по предмету «{lesson.subject}»{f' ({time_str})' if time_str else ''}.{reason_text}",
+            related_lesson_id=lesson.id,
+        )
+    elif cancelled_by.role == UserRole.student and lesson.tutor:
+        await create_notification(
+            db,
+            user_id=lesson.tutor_id,
+            type=NotificationType.lesson_cancelled,
+            title="Занятие отменено учеником",
+            message=f"Ученик {cancelled_by.full_name} отменил занятие по предмету «{lesson.subject}»{f' ({time_str})' if time_str else ''}.",
+            related_lesson_id=lesson.id,
+        )
 
 
 async def student_has_prior_lessons_with_tutor(
@@ -169,8 +222,18 @@ async def book_lesson(db: AsyncSession, student: User, slot_id: UUID, subject: s
             existing_lesson.lesson_type = lesson_type
             existing_lesson.meeting_url = profile.default_meeting_url if profile else None
             existing_lesson.recording_url = None
+            existing_lesson.cancellation_reason = None
             slot.is_booked = True
             await db.flush()
+            lesson_type_label = "пробное" if lesson_type == LessonType.trial else "повторное"
+            await create_notification(
+                db,
+                user_id=slot.tutor_id,
+                type=NotificationType.lesson_booked,
+                title="Новая запись на занятие",
+                message=f"Ученик {student.full_name} записался на {lesson_type_label} занятие по предмету «{subject}».",
+                related_lesson_id=existing_lesson.id,
+            )
             await db.commit()
             return existing_lesson
 
@@ -198,5 +261,19 @@ async def book_lesson(db: AsyncSession, student: User, slot_id: UUID, subject: s
     )
     db.add(lesson)
     await db.flush()
+
+    tutor_result = await db.execute(select(User).where(User.id == slot.tutor_id))
+    tutor = tutor_result.scalar_one_or_none()
+    if tutor:
+        lesson_type_label = "пробное" if lesson_type == LessonType.trial else "повторное"
+        await create_notification(
+            db,
+            user_id=slot.tutor_id,
+            type=NotificationType.lesson_booked,
+            title="Новая запись на занятие",
+            message=f"Ученик {student.full_name} записался на {lesson_type_label} занятие по предмету «{subject}».",
+            related_lesson_id=lesson.id,
+        )
+
     await db.commit()
     return lesson
