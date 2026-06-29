@@ -9,6 +9,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TutorDashboard from "./pages/TutorDashboard";
 import TutorDetailPage from "./pages/TutorDetailPage";
 import TutorsPage from "./pages/TutorsPage";
+import LessonDetailPage from "./pages/LessonDetailPage";
 
 function DashboardRedirect() {
   const { user, loading } = useAuth();
@@ -26,6 +27,9 @@ export default function App() {
         <Route path="register" element={<RegisterPage />} />
         <Route path="tutors" element={<TutorsPage />} />
         <Route path="tutors/:id" element={<TutorDetailPage />} />
+        <Route path="lessons/:id" element={<ProtectedRoute />}>
+          <Route index element={<LessonDetailPage />} />
+        </Route>
         <Route path="dashboard" element={<ProtectedRoute role="student" />}>
           <Route index element={<StudentDashboard />} />
         </Route>

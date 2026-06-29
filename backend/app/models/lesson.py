@@ -15,6 +15,11 @@ class LessonStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class LessonType(str, enum.Enum):
+    trial = "trial"
+    regular = "regular"
+
+
 class Lesson(Base):
     __tablename__ = "lessons"
 
@@ -31,7 +36,12 @@ class Lesson(Base):
     status: Mapped[LessonStatus] = mapped_column(
         Enum(LessonStatus, name="lesson_status"), default=LessonStatus.scheduled, nullable=False
     )
+    subject: Mapped[str] = mapped_column(String(100), nullable=False)
+    lesson_type: Mapped[LessonType] = mapped_column(
+        Enum(LessonType, name="lesson_type"), default=LessonType.trial, nullable=False
+    )
     meeting_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    recording_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

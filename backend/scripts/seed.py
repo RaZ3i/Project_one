@@ -9,7 +9,8 @@ from sqlalchemy import delete, select
 
 from app.core.database import async_session_maker
 from app.core.security import get_password_hash
-from app.models.lesson import Lesson, LessonStatus
+from app.core.subjects import parse_tutor_subjects
+from app.models.lesson import Lesson, LessonStatus, LessonType
 from app.models.review import Review
 from app.models.slot import AvailabilitySlot
 from app.models.tutor_profile import TutorProfile
@@ -228,6 +229,7 @@ async def seed(force: bool = False) -> None:
         await db.flush()
 
         completed_lessons: list[Lesson] = []
+        student_tutor_pairs: set[tuple[uuid.UUID, uuid.UUID]] = set()
         for idx, (student_idx, tutor_idx, rating, comment) in enumerate(REVIEWS_DATA):
             slot = AvailabilitySlot(
                 tutor_id=tutor_users[tutor_idx].id,
@@ -238,12 +240,21 @@ async def seed(force: bool = False) -> None:
             db.add(slot)
             await db.flush()
 
+            pair = (student_users[student_idx].id, tutor_users[tutor_idx].id)
+            lesson_type = LessonType.regular if pair in student_tutor_pairs else LessonType.trial
+            student_tutor_pairs.add(pair)
+            tutor_subjects = parse_tutor_subjects(TUTORS[tutor_idx]["subjects"])
+            subject = tutor_subjects[0] if tutor_subjects else "Математика"
+
             lesson = Lesson(
                 student_id=student_users[student_idx].id,
                 tutor_id=tutor_users[tutor_idx].id,
                 slot_id=slot.id,
                 status=LessonStatus.completed,
+                subject=subject,
+                lesson_type=lesson_type,
                 meeting_url=TUTORS[tutor_idx]["meeting_url"],
+                recording_url="https://www.youtube.com/watch?v=demo123" if idx % 2 == 0 else None,
             )
             db.add(lesson)
             await db.flush()
@@ -273,6 +284,8 @@ async def seed(force: bool = False) -> None:
                 tutor_id=tutor_users[0].id,
                 slot_id=upcoming_slot.id,
                 status=LessonStatus.scheduled,
+                subject="Математика",
+                lesson_type=LessonType.regular,
                 meeting_url=TUTORS[0]["meeting_url"],
             )
         )

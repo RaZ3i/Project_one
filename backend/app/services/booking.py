@@ -2,10 +2,12 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.lesson import Lesson, LessonStatus
+from app.core.subjects import subject_allowed_for_tutor
+from app.models.lesson import Lesson, LessonStatus, LessonType
+from app.models.review import Review
 from app.models.slot import AvailabilitySlot
 from app.models.tutor_profile import TutorProfile
 from app.models.user import User, UserRole
@@ -20,7 +22,7 @@ def get_effective_meeting_url(lesson: Lesson) -> str | None:
     return None
 
 
-def lesson_to_response(lesson: Lesson) -> LessonResponse:
+def lesson_to_response(lesson: Lesson, *, has_review: bool = False) -> LessonResponse:
     slot = lesson.slot
     return LessonResponse(
         id=lesson.id,
@@ -28,7 +30,10 @@ def lesson_to_response(lesson: Lesson) -> LessonResponse:
         tutor_id=lesson.tutor_id,
         slot_id=lesson.slot_id,
         status=lesson.status,
+        subject=lesson.subject,
+        lesson_type=lesson.lesson_type,
         meeting_url=lesson.meeting_url,
+        recording_url=lesson.recording_url,
         effective_meeting_url=get_effective_meeting_url(lesson),
         notes=lesson.notes,
         created_at=lesson.created_at,
@@ -36,6 +41,11 @@ def lesson_to_response(lesson: Lesson) -> LessonResponse:
         slot_ends_at=slot.ends_at if slot else None,
         student_name=lesson.student.full_name if lesson.student else None,
         tutor_name=lesson.tutor.full_name if lesson.tutor else None,
+        student_avatar_url=lesson.student.avatar_url if lesson.student else None,
+        tutor_avatar_url=lesson.tutor.avatar_url if lesson.tutor else None,
+        student_gender=lesson.student.gender.value if lesson.student and lesson.student.gender else None,
+        tutor_gender=lesson.tutor.gender.value if lesson.tutor and lesson.tutor.gender else None,
+        has_review=has_review,
     )
 
 
@@ -58,7 +68,40 @@ async def cancel_lesson_booking(db: AsyncSession, lesson: Lesson) -> None:
     await release_slot(db, lesson.slot_id)
 
 
-async def book_lesson(db: AsyncSession, student: User, slot_id: UUID) -> Lesson:
+async def student_has_prior_lessons_with_tutor(
+    db: AsyncSession, student_id: UUID, tutor_id: UUID
+) -> bool:
+    result = await db.execute(
+        select(
+            exists(
+                select(Lesson.id).where(
+                    Lesson.student_id == student_id,
+                    Lesson.tutor_id == tutor_id,
+                    Lesson.status.in_([LessonStatus.scheduled, LessonStatus.completed]),
+                )
+            )
+        )
+    )
+    return bool(result.scalar())
+
+
+async def resolve_lesson_type(
+    db: AsyncSession, student_id: UUID, tutor_id: UUID
+) -> LessonType:
+    has_prior = await student_has_prior_lessons_with_tutor(db, student_id, tutor_id)
+    return lesson_type_from_prior(has_prior)
+
+
+def lesson_type_from_prior(has_prior: bool) -> LessonType:
+    return LessonType.regular if has_prior else LessonType.trial
+
+
+async def lesson_has_review(db: AsyncSession, lesson_id: UUID) -> bool:
+    result = await db.execute(select(Review.id).where(Review.lesson_id == lesson_id).limit(1))
+    return result.scalar_one_or_none() is not None
+
+
+async def book_lesson(db: AsyncSession, student: User, slot_id: UUID, subject: str) -> Lesson:
     if student.role != UserRole.student:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется доступ ученика")
 
@@ -75,6 +118,18 @@ async def book_lesson(db: AsyncSession, student: User, slot_id: UUID) -> Lesson:
     if slot.tutor_id == student.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя забронировать свой собственный слот")
 
+    profile_result = await db.execute(
+        select(TutorProfile).where(TutorProfile.user_id == slot.tutor_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if profile is None or not subject_allowed_for_tutor(subject, profile.subjects):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Выберите предмет из списка предметов репетитора",
+        )
+
+    lesson_type = await resolve_lesson_type(db, student.id, slot.tutor_id)
+
     existing_result = await db.execute(select(Lesson).where(Lesson.slot_id == slot_id))
     existing_lesson = existing_result.scalar_one_or_none()
 
@@ -84,13 +139,12 @@ async def book_lesson(db: AsyncSession, student: User, slot_id: UUID) -> Lesson:
         if existing_lesson.status == LessonStatus.completed:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже использован")
         if existing_lesson.status == LessonStatus.cancelled:
-            profile_result = await db.execute(
-                select(TutorProfile).where(TutorProfile.user_id == slot.tutor_id)
-            )
-            profile = profile_result.scalar_one_or_none()
             existing_lesson.student_id = student.id
             existing_lesson.status = LessonStatus.scheduled
+            existing_lesson.subject = subject
+            existing_lesson.lesson_type = lesson_type
             existing_lesson.meeting_url = profile.default_meeting_url if profile else None
+            existing_lesson.recording_url = None
             slot.is_booked = True
             await db.flush()
             await db.commit()
@@ -108,17 +162,14 @@ async def book_lesson(db: AsyncSession, student: User, slot_id: UUID) -> Lesson:
         else:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Слот уже забронирован")
 
-    profile_result = await db.execute(
-        select(TutorProfile).where(TutorProfile.user_id == slot.tutor_id)
-    )
-    profile = profile_result.scalar_one_or_none()
-
     slot.is_booked = True
     lesson = Lesson(
         student_id=student.id,
         tutor_id=slot.tutor_id,
         slot_id=slot.id,
         status=LessonStatus.scheduled,
+        subject=subject,
+        lesson_type=lesson_type,
         meeting_url=profile.default_meeting_url if profile else None,
     )
     db.add(lesson)

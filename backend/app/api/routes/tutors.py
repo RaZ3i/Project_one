@@ -6,13 +6,16 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_tutor
+from app.api.deps import get_current_tutor, get_current_user
 from app.core.database import get_db
 from app.models.review import Review
 from app.models.tutor_profile import TutorProfile
 from app.models.user import User, UserRole
+from app.schemas.lesson import TutorBookingInfo
 from app.schemas.review import ReviewResponse
 from app.schemas.tutor import TutorDetail, TutorListItem, TutorProfileUpdate
+from app.core.subjects import parse_tutor_subjects
+from app.services.booking import student_has_prior_lessons_with_tutor
 
 router = APIRouter(prefix="/tutors", tags=["tutors"])
 
@@ -85,6 +88,30 @@ async def list_tutor_reviews(tutor_id: UUID, db: Annotated[AsyncSession, Depends
         )
         for review, student_name in rows
     ]
+
+
+@router.get("/{tutor_id}/booking-info", response_model=TutorBookingInfo)
+async def get_tutor_booking_info(
+    tutor_id: UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if user.role != UserRole.student:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется доступ ученика")
+
+    result = await db.execute(
+        select(User)
+        .where(User.id == tutor_id, User.role == UserRole.tutor)
+        .options(selectinload(User.tutor_profile))
+    )
+    tutor = result.scalar_one_or_none()
+    if tutor is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Репетитор не найден")
+
+    profile = tutor.tutor_profile
+    subjects = parse_tutor_subjects(profile.subjects if profile else None)
+    has_prior = await student_has_prior_lessons_with_tutor(db, user.id, tutor_id)
+    return TutorBookingInfo(subjects=subjects, is_trial=not has_prior)
 
 
 @router.get("/{tutor_id}", response_model=TutorDetail)

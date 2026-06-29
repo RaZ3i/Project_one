@@ -137,11 +137,17 @@ export interface Slot {
 }
 
 export type LessonStatus = "scheduled" | "completed" | "cancelled";
+export type LessonType = "trial" | "regular";
 
 export const LESSON_STATUS_LABELS: Record<LessonStatus, string> = {
   scheduled: "Запланировано",
   completed: "Завершено",
   cancelled: "Отменено",
+};
+
+export const LESSON_TYPE_LABELS: Record<LessonType, string> = {
+  trial: "Пробный урок",
+  regular: "Повторный урок",
 };
 
 export interface Lesson {
@@ -150,7 +156,10 @@ export interface Lesson {
   tutor_id: string;
   slot_id: string;
   status: LessonStatus;
+  subject: string;
+  lesson_type: LessonType;
   meeting_url: string | null;
+  recording_url: string | null;
   effective_meeting_url: string | null;
   notes: string | null;
   created_at: string;
@@ -158,4 +167,22 @@ export interface Lesson {
   slot_ends_at: string | null;
   student_name: string | null;
   tutor_name: string | null;
+  student_avatar_url: string | null;
+  tutor_avatar_url: string | null;
+  student_gender: UserGender | null;
+  tutor_gender: UserGender | null;
+  has_review: boolean;
+}
+
+export interface TutorBookingInfo {
+  subjects: string[];
+  is_trial: boolean;
+}
+
+export function getLesson(id: string) {
+  return apiFetch<Lesson>(`/api/lessons/${id}`);
+}
+
+export function getTutorBookingInfo(tutorId: string) {
+  return apiFetch<TutorBookingInfo>(`/api/tutors/${tutorId}/booking-info`);
 }
