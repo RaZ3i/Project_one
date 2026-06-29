@@ -15,7 +15,11 @@ from app.schemas.lesson import TutorBookingInfo
 from app.schemas.review import ReviewResponse
 from app.schemas.tutor import TutorDetail, TutorListItem, TutorProfileUpdate
 from app.core.subjects import parse_tutor_subjects
-from app.services.booking import student_has_prior_lessons_with_tutor
+from app.services.booking import (
+    student_has_completed_lesson_with_tutor,
+    student_has_prior_lessons_with_tutor,
+    student_has_reviewed_tutor,
+)
 
 router = APIRouter(prefix="/tutors", tags=["tutors"])
 
@@ -111,7 +115,14 @@ async def get_tutor_booking_info(
     profile = tutor.tutor_profile
     subjects = parse_tutor_subjects(profile.subjects if profile else None)
     has_prior = await student_has_prior_lessons_with_tutor(db, user.id, tutor_id)
-    return TutorBookingInfo(subjects=subjects, is_trial=not has_prior)
+    has_completed = await student_has_completed_lesson_with_tutor(db, user.id, tutor_id)
+    has_reviewed = await student_has_reviewed_tutor(db, user.id, tutor_id)
+    return TutorBookingInfo(
+        subjects=subjects,
+        is_trial=not has_prior,
+        can_review=has_completed and not has_reviewed,
+        has_reviewed=has_reviewed,
+    )
 
 
 @router.get("/{tutor_id}", response_model=TutorDetail)

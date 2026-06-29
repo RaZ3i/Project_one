@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, apiFetch, getTutorBookingInfo, type Review, type Slot, type TutorDetail } from "../api/client";
 import { useAuth } from "../api/auth";
@@ -19,6 +19,61 @@ function formatSlotTime(iso: string) {
 function parseSubjects(subjects: string | null): string[] {
   if (!subjects) return [];
   return subjects.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function ReviewForm({ tutorId }: { tutorId: string }) {
+  const queryClient = useQueryClient();
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      apiFetch("/api/reviews", {
+        method: "POST",
+        body: JSON.stringify({
+          tutor_id: tutorId,
+          rating,
+          comment: comment || null,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tutor-reviews", tutorId] });
+      queryClient.invalidateQueries({ queryKey: ["tutor", tutorId] });
+      queryClient.invalidateQueries({ queryKey: ["tutor-booking-info", tutorId] });
+      setError("");
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "Не удалось отправить отзыв"),
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    mutation.mutate();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="card-surface space-y-3">
+      <h3 className="font-medium">Оставить отзыв</h3>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <div>
+        <label className="block text-sm font-medium mb-1">Оценка</label>
+        <select value={rating} onChange={(e) => setRating(Number(e.target.value))} className="form-input">
+          {[5, 4, 3, 2, 1].map((n) => (
+            <option key={n} value={n}>
+              {n} звёзд
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Комментарий</label>
+        <textarea value={comment} onChange={(e) => setComment(e.target.value)} className="form-input py-2" rows={3} />
+      </div>
+      <button type="submit" disabled={mutation.isPending} className="btn-primary text-sm">
+        Отправить отзыв
+      </button>
+    </form>
+  );
 }
 
 export default function TutorDetailPage() {
@@ -130,6 +185,17 @@ export default function TutorDetailPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {user?.role === "student" && bookingInfo?.can_review && id && (
+        <section className="mt-6">
+          <h2 className="section-title">Ваш отзыв</h2>
+          <ReviewForm tutorId={id} />
+        </section>
+      )}
+
+      {user?.role === "student" && bookingInfo?.has_reviewed && (
+        <p className="text-muted text-sm mt-6">Вы уже оставили отзыв этому репетитору.</p>
       )}
 
       <h2 className="section-title mt-6 sm:mt-8">Доступные слоты</h2>

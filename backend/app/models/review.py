@@ -10,7 +10,7 @@ from app.core.database import Base
 
 class Review(Base):
     __tablename__ = "reviews"
-    __table_args__ = (UniqueConstraint("lesson_id", name="uq_reviews_lesson_id"),)
+    __table_args__ = (UniqueConstraint("student_id", "tutor_id", name="uq_reviews_student_tutor"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id: Mapped[uuid.UUID] = mapped_column(

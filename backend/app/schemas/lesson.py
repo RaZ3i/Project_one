@@ -57,3 +57,5 @@ class LessonResponse(BaseModel):
 class TutorBookingInfo(BaseModel):
     subjects: list[str]
     is_trial: bool
+    can_review: bool = False
+    has_reviewed: bool = False

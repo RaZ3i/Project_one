@@ -177,6 +177,8 @@ export interface Lesson {
 export interface TutorBookingInfo {
   subjects: string[];
   is_trial: boolean;
+  can_review: boolean;
+  has_reviewed: boolean;
 }
 
 export function getLesson(id: string) {

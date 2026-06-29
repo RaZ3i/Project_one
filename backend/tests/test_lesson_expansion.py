@@ -41,11 +41,16 @@ class LessonTypeTests(unittest.TestCase):
 
 
 class ReviewSchemaTests(unittest.TestCase):
-    def test_lesson_id_required(self):
-        with self.assertRaises(ValidationError):
-            ReviewCreate(tutor_id=uuid4(), rating=5)
+    def test_lesson_id_optional(self):
+        review = ReviewCreate(tutor_id=uuid4(), rating=5)
+        self.assertIsNone(review.lesson_id)
 
-    def test_valid_review_create(self):
+    def test_valid_review_create_without_lesson(self):
+        review = ReviewCreate(tutor_id=uuid4(), rating=5, comment="Отлично")
+        self.assertEqual(review.rating, 5)
+        self.assertIsNone(review.lesson_id)
+
+    def test_valid_review_create_with_lesson(self):
         review = ReviewCreate(tutor_id=uuid4(), lesson_id=uuid4(), rating=4, comment="Отлично")
         self.assertEqual(review.rating, 4)
 

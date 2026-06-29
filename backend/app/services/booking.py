@@ -101,6 +101,30 @@ async def lesson_has_review(db: AsyncSession, lesson_id: UUID) -> bool:
     return result.scalar_one_or_none() is not None
 
 
+async def student_has_completed_lesson_with_tutor(
+    db: AsyncSession, student_id: UUID, tutor_id: UUID
+) -> bool:
+    result = await db.execute(
+        select(
+            exists(
+                select(Lesson.id).where(
+                    Lesson.student_id == student_id,
+                    Lesson.tutor_id == tutor_id,
+                    Lesson.status == LessonStatus.completed,
+                )
+            )
+        )
+    )
+    return bool(result.scalar())
+
+
+async def student_has_reviewed_tutor(db: AsyncSession, student_id: UUID, tutor_id: UUID) -> bool:
+    result = await db.execute(
+        select(Review.id).where(Review.student_id == student_id, Review.tutor_id == tutor_id).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def book_lesson(db: AsyncSession, student: User, slot_id: UUID, subject: str) -> Lesson:
     if student.role != UserRole.student:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется доступ ученика")

@@ -11,6 +11,10 @@ from app.models.lesson import Lesson, LessonStatus
 from app.models.review import Review
 from app.models.user import User
 from app.schemas.review import ReviewCreate, ReviewResponse
+from app.services.booking import (
+    student_has_completed_lesson_with_tutor,
+    student_has_reviewed_tutor,
+)
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
@@ -26,27 +30,39 @@ async def create_review(
     if tutor is None or tutor.role.value != "tutor":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Репетитор не найден")
 
-    lesson_result = await db.execute(select(Lesson).where(Lesson.id == data.lesson_id))
-    lesson = lesson_result.scalar_one_or_none()
-    if lesson is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Занятие не найдено")
-    if lesson.student_id != student.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к этому занятию")
-    if lesson.tutor_id != data.tutor_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Занятие не принадлежит этому репетитору")
-    if lesson.status != LessonStatus.completed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Отзыв можно оставить только после завершённого занятия"
-        )
+    if await student_has_reviewed_tutor(db, student.id, data.tutor_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Вы уже оставили отзыв этому репетитору")
 
-    existing = await db.execute(select(Review).where(Review.lesson_id == data.lesson_id))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Отзыв на это занятие уже оставлен")
+    lesson_id: UUID | None = None
+    if data.lesson_id is not None:
+        lesson_result = await db.execute(select(Lesson).where(Lesson.id == data.lesson_id))
+        lesson = lesson_result.scalar_one_or_none()
+        if lesson is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Занятие не найдено")
+        if lesson.student_id != student.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к этому занятию")
+        if lesson.tutor_id != data.tutor_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Занятие не принадлежит этому репетитору"
+            )
+        if lesson.status != LessonStatus.completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Отзыв можно оставить только после завершённого занятия",
+            )
+        lesson_id = lesson.id
+    else:
+        has_completed = await student_has_completed_lesson_with_tutor(db, student.id, data.tutor_id)
+        if not has_completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Отзыв можно оставить только после занятия с репетитором",
+            )
 
     review = Review(
         student_id=student.id,
         tutor_id=data.tutor_id,
-        lesson_id=data.lesson_id,
+        lesson_id=lesson_id,
         rating=data.rating,
         comment=data.comment,
     )
